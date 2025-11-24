@@ -101,7 +101,7 @@ export const EventsTab = () => {
                   <h3 className="font-semibold">{event.event_name}</h3>
                   <p className="text-sm text-muted-foreground">
                     {getEntryCount(event.event_name)} entries • {event.event_type}
-                    {event.event_type === 'scale' && ` (1-${event.scale_max} ${event.scale_label})`}
+                    {event.event_type === 'Scale' && ` (1-${event.scale_max} ${event.scale_label})`}
                   </p>
                 </div>
                 <DropdownMenu>

@@ -33,7 +33,7 @@ export const LogTab = () => {
     const event = events.find(e => e.event_name === log.event_name);
     if (!event) return log.value.toString();
     
-    if (event.event_type === 'boolean') {
+    if (event.event_type === 'Count') {
       return 'Logged';
     }
     return `${log.value} ${event.scale_label || ''}`;

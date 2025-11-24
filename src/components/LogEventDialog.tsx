@@ -61,7 +61,7 @@ export const LogEventDialog = ({ open, onOpenChange, onSave }: LogEventDialogPro
     const event = events.find(e => e.event_name === selectedEvent);
     if (!event) return;
 
-    const value = event.event_type === 'boolean' ? 1 : scaleValue;
+    const value = event.event_type === 'Count' ? 1 : scaleValue;
     
     setSaving(true);
     try {
@@ -143,7 +143,7 @@ export const LogEventDialog = ({ open, onOpenChange, onSave }: LogEventDialogPro
             </Select>
           </div>
 
-          {selectedEventData?.event_type === 'scale' && (
+          {selectedEventData?.event_type === 'Scale' && (
             <div className="space-y-2">
               <Label>
                 Value: {scaleValue} {selectedEventData.scale_label}
@@ -160,10 +160,7 @@ export const LogEventDialog = ({ open, onOpenChange, onSave }: LogEventDialogPro
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={handleLog} disabled={saving}>
+          <Button onClick={handleLog} disabled={saving} className="w-full">
             {saving ? 'Logging...' : 'Log'}
           </Button>
         </DialogFooter>

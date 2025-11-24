@@ -66,7 +66,7 @@ export const HistoryTab = () => {
         );
         
         let value = 0;
-        if (event.event_type === 'boolean') {
+        if (event.event_type === 'Count') {
           value = dayLogs.length;
         } else {
           value = dayLogs.length > 0 
@@ -89,7 +89,7 @@ export const HistoryTab = () => {
         );
         
         let value = 0;
-        if (event.event_type === 'boolean') {
+        if (event.event_type === 'Count') {
           value = dayLogs.length;
         } else {
           value = dayLogs.length > 0 
@@ -112,7 +112,7 @@ export const HistoryTab = () => {
         );
         
         let value = 0;
-        if (event.event_type === 'boolean') {
+        if (event.event_type === 'Count') {
           value = monthLogs.length;
         } else {
           value = monthLogs.length > 0 
@@ -133,7 +133,7 @@ export const HistoryTab = () => {
   const yAxisLabel = useMemo(() => {
     const event = events.find(e => e.event_name === selectedEvent);
     if (!event) return '';
-    if (event.event_type === 'boolean') return 'Count';
+    if (event.event_type === 'Count') return 'Count';
     return `Avg ${event.scale_label || 'Value'}`;
   }, [selectedEvent, events]);
 

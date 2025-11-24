@@ -28,7 +28,7 @@ interface EventDialogProps {
 
 export const EventDialog = ({ open, onOpenChange, event, onSave }: EventDialogProps) => {
   const [eventName, setEventName] = useState('');
-  const [eventType, setEventType] = useState<'boolean' | 'scale'>('boolean');
+  const [eventType, setEventType] = useState<string>('Count');
   const [scaleLabel, setScaleLabel] = useState('');
   const [scaleMax, setScaleMax] = useState('5');
   const [saving, setSaving] = useState(false);
@@ -41,7 +41,7 @@ export const EventDialog = ({ open, onOpenChange, event, onSave }: EventDialogPr
       setScaleMax(event.scale_max?.toString() || '5');
     } else {
       setEventName('');
-      setEventType('boolean');
+      setEventType('Count');
       setScaleLabel('');
       setScaleMax('5');
     }
@@ -59,16 +59,16 @@ export const EventDialog = ({ open, onOpenChange, event, onSave }: EventDialogPr
         await eventRepo.update(event.id, {
           event_name: eventName,
           event_type: eventType,
-          scale_label: eventType === 'scale' ? scaleLabel : null,
-          scale_max: eventType === 'scale' ? parseInt(scaleMax) : null,
+          scale_label: eventType === 'Scale' ? scaleLabel : null,
+          scale_max: eventType === 'Scale' ? parseInt(scaleMax) : null,
         });
         toast.success('Event updated');
       } else {
         await eventRepo.create({
           event_name: eventName,
           event_type: eventType,
-          scale_label: eventType === 'scale' ? scaleLabel : null,
-          scale_max: eventType === 'scale' ? parseInt(scaleMax) : null,
+          scale_label: eventType === 'Scale' ? scaleLabel : null,
+          scale_max: eventType === 'Scale' ? parseInt(scaleMax) : null,
         });
         toast.success('Event created');
       }
@@ -102,18 +102,18 @@ export const EventDialog = ({ open, onOpenChange, event, onSave }: EventDialogPr
           
           <div className="space-y-2">
             <Label htmlFor="event-type">Event Type</Label>
-            <Select value={eventType} onValueChange={(v) => setEventType(v as 'boolean' | 'scale')}>
+            <Select value={eventType} onValueChange={setEventType}>
               <SelectTrigger id="event-type">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="boolean">Boolean</SelectItem>
-                <SelectItem value="scale">Scale</SelectItem>
+                <SelectItem value="Count">Count</SelectItem>
+                <SelectItem value="Scale">Scale</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          {eventType === 'scale' && (
+          {eventType === 'Scale' && (
             <>
               <div className="space-y-2">
                 <Label htmlFor="scale-label">Scale Label</Label>
@@ -140,10 +140,7 @@ export const EventDialog = ({ open, onOpenChange, event, onSave }: EventDialogPr
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
-            Cancel
-          </Button>
-          <Button onClick={handleSave} disabled={saving}>
+          <Button onClick={handleSave} disabled={saving} className="w-full">
             {saving ? 'Saving...' : 'Save'}
           </Button>
         </DialogFooter>
