@@ -75,10 +75,14 @@ export default function HistoryScreen() {
         data.push(Math.round(value * 10) / 10);
       }
     } else if (timeframe === 'month') {
-      // Last 28 days
-      for (let i = 27; i >= 0; i--) {
-        const date = new Date(now);
-        date.setDate(date.getDate() - i);
+      // Current month from day 1 to today
+      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const monthName = monthNames[now.getMonth()];
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(now.getFullYear(), now.getMonth(), day);
         const dateStr = date.toISOString().split('T')[0];
         const dayLogs = eventLogs.filter(log => 
           log.created_at.split('T')[0] === dateStr
@@ -93,8 +97,13 @@ export default function HistoryScreen() {
             : 0;
         }
         
-        // Show day number only
-        labels.push(String(date.getDate()));
+        // Show only 6 labels evenly distributed
+        const interval = Math.floor(daysInMonth / 5);
+        if (day === 1 || day % interval === 0 || day === daysInMonth) {
+          labels.push(`${day} ${monthName}`);
+        } else {
+          labels.push('');
+        }
         data.push(Math.round(value * 10) / 10);
       }
     } else {
@@ -135,6 +144,64 @@ export default function HistoryScreen() {
     return `Avg ${event.scale_label || 'Value'}`;
   }, [selectedEvent, events]);
 
+  const screenWidth = Dimensions.get('window').width;
+  
+  // Dynamic bar width based on number of data points
+  const barPercentage = useMemo(() => {
+    const dataLength = chartData.datasets[0]?.data.length || 7;
+    if (timeframe === 'week') return 0.7;
+    if (timeframe === 'month') return 0.5;
+    return 0.6; // year
+  }, [timeframe, chartData]);
+  
+  const lineChartConfig = useMemo(() => ({
+    backgroundColor: '#ffffff',
+    backgroundGradientFrom: '#ffffff',
+    backgroundGradientTo: '#ffffff',
+    decimalPlaces: 1,
+    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+    fillShadowGradient: '#000',
+    fillShadowGradientOpacity: 1,
+    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+    style: {
+      borderRadius: 0,
+    },
+    propsForBackgroundLines: {
+      strokeWidth: 0,
+    },
+    propsForDots: {
+      r: '0',
+    },
+    formatYLabel: (value: string) => value === '0' ? '' : value,
+  }), []);
+
+  const barChartConfig = useMemo(() => ({
+    backgroundColor: '#ffffff',
+    backgroundGradientFrom: '#ffffff',
+    backgroundGradientTo: '#ffffff',
+    decimalPlaces: 1,
+    color: (opacity = 1) => `rgba(0, 0, 0, 1)`,
+    fillShadowGradientFrom: '#000000',
+    fillShadowGradientFromOpacity: 1,
+    fillShadowGradientTo: '#000000',
+    fillShadowGradientToOpacity: 1,
+    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+    style: {
+      borderRadius: 0,
+    },
+    propsForBackgroundLines: {
+      strokeWidth: 0,
+    },
+    barPercentage: barPercentage,
+    formatYLabel: (value: string) => value === '0' ? '' : value,
+    formatTopBarValue: (value: any) => {
+      if (value === null || value === undefined || value === 0 || value === '0') {
+        return '';
+      }
+      return value.toString();
+    },
+  }), [barPercentage]);
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -152,32 +219,6 @@ export default function HistoryScreen() {
       </View>
     );
   }
-
-  const screenWidth = Dimensions.get('window').width;
-  const chartConfig = {
-    backgroundColor: '#ffffff',
-    backgroundGradientFrom: '#ffffff',
-    backgroundGradientTo: '#ffffff',
-    decimalPlaces: 1,
-    color: (opacity = 1) => `rgba(0, 0, 0, 1)`,
-    fillShadowGradient: '#000',
-    fillShadowGradientOpacity: 1,
-    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-    style: {
-      borderRadius: 0,
-    },
-    propsForBackgroundLines: {
-      strokeDasharray: '2,4',
-      stroke: '#e0e0e0',
-      strokeWidth: 1,
-    },
-    propsForDots: {
-      r: '4',
-      strokeWidth: '2',
-      stroke: '#000',
-      fill: '#000',
-    },
-  };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -238,18 +279,19 @@ export default function HistoryScreen() {
         <Text style={styles.chartTitle}>Line Chart</Text>
         <LineChart
           data={chartData}
-          width={screenWidth - 16}
+          width={screenWidth}
           height={220}
-          chartConfig={chartConfig}
+          chartConfig={lineChartConfig}
           bezier
           style={styles.chart}
           yAxisLabel=""
           yAxisSuffix=""
-          withInnerLines
-          withOuterLines
+          withInnerLines={false}
+          withOuterLines={false}
           withVerticalLabels
           withHorizontalLabels
           fromZero
+          withDots={false}
           withScrollableDot={false}
         />
       </View>
@@ -259,15 +301,16 @@ export default function HistoryScreen() {
         <Text style={styles.chartTitle}>Bar Chart</Text>
         <BarChart
           data={chartData}
-          width={screenWidth - 16}
+          width={screenWidth - 32}
           height={220}
-          chartConfig={chartConfig}
+          chartConfig={barChartConfig}
           style={styles.chart}
           yAxisLabel=""
           yAxisSuffix=""
-          withInnerLines
+          withInnerLines={false}
           fromZero
           showValuesOnTopOfBars
+          flatColor
         />
       </View>
     </ScrollView>
@@ -280,7 +323,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   content: {
-    padding: 16,
+    paddingVertical: 16,
   },
   loadingText: {
     textAlign: 'center',
@@ -299,6 +342,7 @@ const styles = StyleSheet.create({
   },
   selectorCard: {
     marginBottom: 16,
+    paddingHorizontal: 16,
   },
   selectorLabel: {
     fontSize: 14,
@@ -337,6 +381,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     padding: 4,
     marginBottom: 16,
+    marginHorizontal: 16,
   },
   tab: {
     flex: 1,
@@ -364,7 +409,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 16,
-    paddingHorizontal: 0,
+    paddingHorizontal: 16,
   },
   chart: {
     marginVertical: 8,

@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { eventRepo, Event } from '../lib/eventRepo';
-import { logRepo } from '../lib/logRepo';
+import { logRepo, Log } from '../lib/logRepo';
 import { EventDialog } from '../components/EventDialog';
 
 export default function EventsScreen({ route, navigation }: any) {
   const [events, setEvents] = useState<Event[]>([]);
+  const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
@@ -14,8 +15,12 @@ export default function EventsScreen({ route, navigation }: any) {
 
   const loadEvents = async () => {
     try {
-      const data = await eventRepo.list();
+      const [data, allLogs] = await Promise.all([
+        eventRepo.list(),
+        logRepo.list()
+      ]);
       setEvents(data);
+      setLogs(allLogs);
       
       // Load log counts
       const counts: Record<string, number> = {};
@@ -78,6 +83,27 @@ export default function EventsScreen({ route, navigation }: any) {
     setIsDialogOpen(false);
   };
 
+  const formatValue = (log: Log) => {
+    const event = events.find(e => e.event_name === log.event_name);
+    if (!event) return log.value.toString();
+    
+    const eventType = String(event.event_type);
+    if (eventType === 'Count') {
+      return 'Logged';
+    }
+    return `${log.value} ${event.scale_label || ''}`;
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { 
+      month: 'short', 
+      day: 'numeric',
+      hour: 'numeric',
+      minute: '2-digit'
+    });
+  };
+
   const renderEvent = ({ item }: { item: Event }) => (
     <View style={styles.eventCard}>
       <View style={styles.eventInfo}>
@@ -114,6 +140,16 @@ export default function EventsScreen({ route, navigation }: any) {
     </View>
   );
 
+  const renderLog = ({ item }: { item: Log }) => (
+    <View style={styles.logItem}>
+      <View style={styles.logContent}>
+        <Text style={styles.eventName}>{item.event_name}</Text>
+        <Text style={styles.value}>{formatValue(item)}</Text>
+      </View>
+      <Text style={styles.date}>{formatDate(item.created_at)}</Text>
+    </View>
+  );
+
   if (loading) {
     return (
       <View style={styles.container}>
@@ -124,16 +160,38 @@ export default function EventsScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.container}>
-      {events.length === 0 ? (
-        <Text style={styles.emptyText}>No events yet. Create your first event to get started.</Text>
-      ) : (
-        <FlatList
-          data={events}
-          renderItem={renderEvent}
-          keyExtractor={(item) => item.id}
-          contentContainerStyle={styles.list}
-        />
-      )}
+      <FlatList
+        ListHeaderComponent={
+          <>
+            {events.length === 0 ? (
+              <Text style={styles.emptyText}>No events yet. Create your first event to get started.</Text>
+            ) : (
+              <View>
+                {events.map((item) => (
+                  <View key={item.id}>
+                    {renderEvent({ item })}
+                  </View>
+                ))}
+              </View>
+            )}
+            
+            {/* Separator */}
+            <View style={styles.separator} />
+            
+            {/* Log Section Header */}
+            <Text style={styles.logHeader}>Log</Text>
+          </>
+        }
+        data={logs}
+        renderItem={renderLog}
+        keyExtractor={(item) => item.id}
+        ListEmptyComponent={
+          logs.length === 0 ? (
+            <Text style={styles.emptyText}>No logs yet. Start tracking to see your history.</Text>
+          ) : null
+        }
+        ItemSeparatorComponent={() => <View style={styles.logSeparator} />}
+      />
 
       <EventDialog
         visible={isDialogOpen}
@@ -182,7 +240,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
-    backgroundColor: '#f8f9fa',
+    backgroundColor: '#000',
     borderRadius: 8,
   },
   eventInfo: {
@@ -192,10 +250,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 4,
+    color: '#fff',
   },
   eventMeta: {
     fontSize: 14,
-    color: '#666',
+    color: '#ccc',
   },
   menuButton: {
     padding: 8,
@@ -203,7 +262,7 @@ const styles = StyleSheet.create({
   menuIcon: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#666',
+    color: '#fff',
   },
   menu: {
     position: 'absolute',
@@ -234,5 +293,36 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     color: '#666',
     marginTop: 32,
+  },
+  separator: {
+    height: 0,
+    marginVertical: 24,
+  },
+  logHeader: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 16,
+    color: '#000',
+  },
+  logItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    paddingVertical: 12,
+  },
+  logContent: {
+    flex: 1,
+  },
+  value: {
+    fontSize: 14,
+    color: '#666',
+  },
+  date: {
+    fontSize: 14,
+    color: '#666',
+  },
+  logSeparator: {
+    height: 1,
+    backgroundColor: '#e9ecef',
   },
 });

@@ -6,7 +6,6 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import Svg, { Path, Rect, Circle, Polyline } from 'react-native-svg';
 import EventsScreen from './screens/EventsScreen';
-import LogScreen from './screens/LogScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import { LogEventDialog } from './components/LogEventDialog';
 
@@ -25,13 +24,6 @@ const CalendarIcon = ({ color }: { color: string }) => (
   <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
     <Rect x="3" y="4" width="18" height="18" rx="2" />
     <Path d="M16 2v4M8 2v4M3 10h18" />
-  </Svg>
-);
-
-const ClipboardIcon = ({ color }: { color: string }) => (
-  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <Path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-    <Path d="M9 5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2 2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2" />
   </Svg>
 );
 
@@ -183,14 +175,6 @@ export default function App() {
                 ),
               })}
             />
-            <Tab.Screen 
-              name="Log" 
-              component={LogScreen}
-              options={{ 
-                tabBarLabel: 'Log',
-                tabBarIcon: ({ color }) => <ClipboardIcon color={color} />,
-              }}
-            />
           </Tab.Navigator>
           
           <TouchableOpacity
@@ -216,8 +200,9 @@ export default function App() {
 const appStyles = StyleSheet.create({
   fab: {
     position: 'absolute',
-    bottom: 80,
-    right: 24,
+    bottom: 52,
+    left: '50%',
+    marginLeft: -28,
     width: 56,
     height: 56,
     borderRadius: 28,
