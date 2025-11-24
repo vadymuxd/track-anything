@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Event, storage } from '@/lib/storage';
+import { Event, eventRepo } from '@/lib/eventRepo';
+import { logRepo } from '@/lib/logRepo';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import {
@@ -10,19 +11,48 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { MoreVertical, Plus } from 'lucide-react';
 import { EventDialog } from './EventDialog';
+import { toast } from 'sonner';
 
 export const EventsTab = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [logCounts, setLogCounts] = useState<Record<string, number>>({});
+
+  const loadEvents = async () => {
+    try {
+      const data = await eventRepo.list();
+      setEvents(data);
+      
+      // Load log counts for each event
+      const counts: Record<string, number> = {};
+      for (const event of data) {
+        const logs = await logRepo.listByEventName(event.event_name);
+        counts[event.event_name] = logs.length;
+      }
+      setLogCounts(counts);
+    } catch (error) {
+      console.error('Error loading events:', error);
+      toast.error('Failed to load events');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    setEvents(storage.getEvents());
+    loadEvents();
   }, []);
 
-  const handleDelete = (id: string) => {
-    storage.deleteEvent(id);
-    setEvents(storage.getEvents());
+  const handleDelete = async (id: string) => {
+    try {
+      await eventRepo.delete(id);
+      toast.success('Event deleted');
+      loadEvents();
+    } catch (error) {
+      console.error('Error deleting event:', error);
+      toast.error('Failed to delete event');
+    }
   };
 
   const handleEdit = (event: Event) => {
@@ -31,14 +61,23 @@ export const EventsTab = () => {
   };
 
   const handleSave = () => {
-    setEvents(storage.getEvents());
+    loadEvents();
     setEditingEvent(null);
     setIsDialogOpen(false);
   };
 
   const getEntryCount = (eventName: string) => {
-    return storage.getLogsByEvent(eventName).length;
+    return logCounts[eventName] || 0;
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold">Events</h2>
+        <p className="text-muted-foreground">Loading...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { storage, Event } from '@/lib/storage';
+import { Event, eventRepo } from '@/lib/eventRepo';
+import { logRepo } from '@/lib/logRepo';
 import {
   Dialog,
   DialogContent,
@@ -29,16 +30,32 @@ export const LogEventDialog = ({ open, onOpenChange, onSave }: LogEventDialogPro
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<string>('');
   const [scaleValue, setScaleValue] = useState<number>(1);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    const allEvents = storage.getEvents();
-    setEvents(allEvents);
-    if (allEvents.length > 0 && !selectedEvent) {
-      setSelectedEvent(allEvents[0].event_name);
+    if (open) {
+      loadEvents();
     }
   }, [open]);
 
-  const handleLog = () => {
+  const loadEvents = async () => {
+    setLoading(true);
+    try {
+      const allEvents = await eventRepo.list();
+      setEvents(allEvents);
+      if (allEvents.length > 0 && !selectedEvent) {
+        setSelectedEvent(allEvents[0].event_name);
+      }
+    } catch (error) {
+      console.error('Error loading events:', error);
+      toast.error('Failed to load events');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleLog = async () => {
     if (!selectedEvent) return;
 
     const event = events.find(e => e.event_name === selectedEvent);
@@ -46,18 +63,42 @@ export const LogEventDialog = ({ open, onOpenChange, onSave }: LogEventDialogPro
 
     const value = event.event_type === 'boolean' ? 1 : scaleValue;
     
-    storage.addLog({
-      event_name: selectedEvent,
-      value,
-    });
+    setSaving(true);
+    try {
+      await logRepo.create({
+        event_id: event.id,
+        event_name: selectedEvent,
+        value,
+      });
 
-    toast.success('Event logged successfully');
-    setScaleValue(1);
-    onSave();
-    onOpenChange(false);
+      toast.success('Event logged successfully');
+      setScaleValue(1);
+      onSave();
+      onOpenChange(false);
+    } catch (error) {
+      console.error('Error logging event:', error);
+      toast.error('Failed to log event');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const selectedEventData = events.find(e => e.event_name === selectedEvent);
+
+  if (loading) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Log Event</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <p className="text-muted-foreground text-center">Loading...</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   if (events.length === 0) {
     return (
@@ -119,10 +160,12 @@ export const LogEventDialog = ({ open, onOpenChange, onSave }: LogEventDialogPro
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleLog}>Log</Button>
+          <Button onClick={handleLog} disabled={saving}>
+            {saving ? 'Logging...' : 'Log'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

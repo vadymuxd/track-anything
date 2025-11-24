@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Event, storage } from '@/lib/storage';
+import { Event, eventRepo } from '@/lib/eventRepo';
 import {
   Dialog,
   DialogContent,
@@ -17,6 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { toast } from 'sonner';
 
 interface EventDialogProps {
   open: boolean;
@@ -30,6 +31,7 @@ export const EventDialog = ({ open, onOpenChange, event, onSave }: EventDialogPr
   const [eventType, setEventType] = useState<'boolean' | 'scale'>('boolean');
   const [scaleLabel, setScaleLabel] = useState('');
   const [scaleMax, setScaleMax] = useState('5');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (event) {
@@ -45,26 +47,40 @@ export const EventDialog = ({ open, onOpenChange, event, onSave }: EventDialogPr
     }
   }, [event]);
 
-  const handleSave = () => {
-    if (!eventName.trim()) return;
-
-    if (event) {
-      storage.updateEvent(event.id, {
-        event_name: eventName,
-        event_type: eventType,
-        scale_label: eventType === 'scale' ? scaleLabel : undefined,
-        scale_max: eventType === 'scale' ? parseInt(scaleMax) : undefined,
-      });
-    } else {
-      storage.addEvent({
-        event_name: eventName,
-        event_type: eventType,
-        scale_label: eventType === 'scale' ? scaleLabel : undefined,
-        scale_max: eventType === 'scale' ? parseInt(scaleMax) : undefined,
-      });
+  const handleSave = async () => {
+    if (!eventName.trim()) {
+      toast.error('Event name is required');
+      return;
     }
-    
-    onSave();
+
+    setSaving(true);
+    try {
+      if (event) {
+        await eventRepo.update(event.id, {
+          event_name: eventName,
+          event_type: eventType,
+          scale_label: eventType === 'scale' ? scaleLabel : null,
+          scale_max: eventType === 'scale' ? parseInt(scaleMax) : null,
+        });
+        toast.success('Event updated');
+      } else {
+        await eventRepo.create({
+          event_name: eventName,
+          event_type: eventType,
+          scale_label: eventType === 'scale' ? scaleLabel : null,
+          scale_max: eventType === 'scale' ? parseInt(scaleMax) : null,
+        });
+        toast.success('Event created');
+      }
+      
+      onSave();
+      onOpenChange(false);
+    } catch (error: any) {
+      console.error('Error saving event:', error);
+      toast.error(error.message || 'Failed to save event');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -124,10 +140,12 @@ export const EventDialog = ({ open, onOpenChange, event, onSave }: EventDialogPr
           )}
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>
             Cancel
           </Button>
-          <Button onClick={handleSave}>Save</Button>
+          <Button onClick={handleSave} disabled={saving}>
+            {saving ? 'Saving...' : 'Save'}
+          </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

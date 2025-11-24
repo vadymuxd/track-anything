@@ -1,19 +1,36 @@
 import { useState, useEffect } from 'react';
-import { storage, Log } from '@/lib/storage';
+import { Log, logRepo } from '@/lib/logRepo';
+import { Event, eventRepo } from '@/lib/eventRepo';
 import { format } from 'date-fns';
+import { toast } from 'sonner';
 
 export const LogTab = () => {
   const [logs, setLogs] = useState<Log[]>([]);
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const allLogs = storage.getLogs().sort((a, b) => 
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-    setLogs(allLogs);
+    loadData();
   }, []);
 
+  const loadData = async () => {
+    try {
+      const [allLogs, allEvents] = await Promise.all([
+        logRepo.list(),
+        eventRepo.list()
+      ]);
+      setLogs(allLogs);
+      setEvents(allEvents);
+    } catch (error) {
+      console.error('Error loading logs:', error);
+      toast.error('Failed to load logs');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatValue = (log: Log) => {
-    const event = storage.getEvents().find(e => e.event_name === log.event_name);
+    const event = events.find(e => e.event_name === log.event_name);
     if (!event) return log.value.toString();
     
     if (event.event_type === 'boolean') {
@@ -21,6 +38,15 @@ export const LogTab = () => {
     }
     return `${log.value} ${event.scale_label || ''}`;
   };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <h2 className="text-2xl font-bold">Log</h2>
+        <p className="text-muted-foreground text-center py-8">Loading...</p>
+      </div>
+    );
+  }
 
   if (logs.length === 0) {
     return (
