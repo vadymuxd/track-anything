@@ -16,22 +16,42 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
   const [scaleValue, setScaleValue] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  const dialogTranslateY = useRef(new Animated.Value(300)).current;
 
   useEffect(() => {
     if (visible) {
       loadEvents();
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
+
+      overlayOpacity.setValue(0);
+      dialogTranslateY.setValue(300);
+
+      // Animate dialog slide-up and overlay fade-in together
+      Animated.parallel([
+        Animated.timing(dialogTranslateY, {
+          toValue: 0,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+        Animated.timing(overlayOpacity, {
+          toValue: 1,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
     } else {
-      Animated.timing(fadeAnim, {
-        toValue: 0,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
+      Animated.parallel([
+        Animated.timing(overlayOpacity, {
+          toValue: 0,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(dialogTranslateY, {
+          toValue: 300,
+          duration: 250,
+          useNativeDriver: true,
+        }),
+      ]).start();
     }
   }, [visible]);
 
@@ -84,15 +104,22 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
 
   if (loading) {
     return (
-      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-          <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
-        </Animated.View>
-        <View style={styles.dialogContainer}>
-          <View style={styles.dialog}>
-            <Text style={styles.title}>Log Event</Text>
+      <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+        <View style={styles.fullscreen}>
+          <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
+            <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+          </Animated.View>
+          <Animated.View style={[styles.dialogContainer, { transform: [{ translateY: dialogTranslateY }] }]}>
+            <View style={styles.dialog}>
+            <View style={styles.headerRow}>
+              <Text style={styles.title}>Log Event</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.closeIcon}>×</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.loadingText}>Loading...</Text>
-          </View>
+            </View>
+          </Animated.View>
         </View>
       </Modal>
     );
@@ -100,32 +127,45 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
 
   if (events.length === 0) {
     return (
-      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-          <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
-        </Animated.View>
-        <View style={styles.dialogContainer}>
-          <View style={styles.dialog}>
-            <Text style={styles.title}>Log Event</Text>
+      <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+        <View style={styles.fullscreen}>
+          <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
+            <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+          </Animated.View>
+          <Animated.View style={[styles.dialogContainer, { transform: [{ translateY: dialogTranslateY }] }]}>
+            <View style={styles.dialog}>
+            <View style={styles.headerRow}>
+              <Text style={styles.title}>Log Event</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.closeIcon}>×</Text>
+              </TouchableOpacity>
+            </View>
             <Text style={styles.emptyText}>Create an event first to start logging.</Text>
             <TouchableOpacity style={styles.closeButton} onPress={onClose}>
               <Text style={styles.closeButtonText}>Close</Text>
             </TouchableOpacity>
-          </View>
+            </View>
+          </Animated.View>
         </View>
       </Modal>
     );
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
-        <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
-      </Animated.View>
-      <View style={styles.dialogContainer}>
-        <View style={styles.dialog}>
+    <Modal visible={visible} transparent animationType="none" onRequestClose={onClose}>
+      <View style={styles.fullscreen}>
+        <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
+          <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+        </Animated.View>
+        <Animated.View style={[styles.dialogContainer, { transform: [{ translateY: dialogTranslateY }] }]}>
+          <View style={styles.dialog}>
           <ScrollView>
-            <Text style={styles.title}>Log Event</Text>
+            <View style={styles.headerRow}>
+              <Text style={styles.title}>Log Event</Text>
+              <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={styles.closeIcon}>×</Text>
+              </TouchableOpacity>
+            </View>
 
             <View style={styles.field}>
               <Text style={styles.label}>Select Event</Text>
@@ -178,21 +218,22 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
             )}
 
             <View style={styles.buttons}>
-              <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
               <TouchableOpacity style={styles.saveButton} onPress={handleLog} disabled={saving}>
-                <Text style={styles.saveButtonText}>{saving ? 'Logging...' : 'Log'}</Text>
+                <Text style={styles.saveButtonText}>{saving ? 'Submitting...' : 'Submit'}</Text>
               </TouchableOpacity>
             </View>
           </ScrollView>
-        </View>
+          </View>
+        </Animated.View>
       </View>
     </Modal>
   );
 };
 
 const styles = StyleSheet.create({
+  fullscreen: {
+    flex: 1,
+  },
   overlay: {
     position: 'absolute',
     top: 0,
@@ -216,10 +257,21 @@ const styles = StyleSheet.create({
     paddingBottom: 40,
     maxHeight: '80%',
   },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
   title: {
     fontSize: 20,
     fontWeight: '700',
-    marginBottom: 20,
+  },
+  closeIcon: {
+    fontSize: 24,
+    fontWeight: '400',
+    color: '#000',
+    marginLeft: 12,
   },
   loadingText: {
     textAlign: 'center',
@@ -296,24 +348,9 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   buttons: {
-    flexDirection: 'row',
     marginTop: 20,
   },
-  cancelButton: {
-    flex: 1,
-    padding: 14,
-    borderRadius: 8,
-    marginRight: 8,
-    backgroundColor: '#f0f0f0',
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#666',
-  },
   saveButton: {
-    flex: 1,
     padding: 14,
     borderRadius: 8,
     backgroundColor: '#000',

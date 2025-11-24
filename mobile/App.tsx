@@ -4,28 +4,12 @@ import React, { useState } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
-import Svg, { Path, Rect, Circle, Polyline } from 'react-native-svg';
+import { MaterialIcons } from '@expo/vector-icons';
 import EventsScreen from './screens/EventsScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import { LogEventDialog } from './components/LogEventDialog';
 
 const Tab = createBottomTabNavigator();
-
-// Minimalistic SVG Icons
-const BarChartIcon = ({ color }: { color: string }) => (
-  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-    <Rect x="4" y="12" width="4" height="8" fill={color} />
-    <Rect x="10" y="8" width="4" height="12" fill={color} />
-    <Rect x="16" y="4" width="4" height="16" fill={color} />
-  </Svg>
-);
-
-const CalendarIcon = ({ color }: { color: string }) => (
-  <Svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2">
-    <Rect x="3" y="4" width="18" height="18" rx="2" />
-    <Path d="M16 2v4M8 2v4M3 10h18" />
-  </Svg>
-);
 
 class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, { error: any }> {
   constructor(props: { children: React.ReactNode }) {
@@ -153,7 +137,7 @@ export default function App() {
               component={HistoryScreen}
               options={{ 
                 tabBarLabel: 'History',
-                tabBarIcon: ({ color }) => <BarChartIcon color={color} />,
+                tabBarIcon: ({ color }) => <MaterialIcons name="insert-chart" size={24} color={color} />,
               }}
             />
             <Tab.Screen 
@@ -161,7 +145,7 @@ export default function App() {
               component={EventsScreen}
               options={({ navigation }) => ({ 
                 tabBarLabel: 'Events',
-                tabBarIcon: ({ color }) => <CalendarIcon color={color} />,
+                tabBarIcon: ({ color }) => <MaterialIcons name="event" size={24} color={color} />,
                 headerRight: () => (
                   <TouchableOpacity
                     style={{ marginRight: 16 }}

@@ -5,6 +5,7 @@ import { logRepo, Log } from '../lib/logRepo';
 import { EventDialog } from '../components/EventDialog';
 import { useFocusEffect } from '@react-navigation/native';
 import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
+import { MaterialIcons } from '@expo/vector-icons';
 
 export default function EventsScreen({ route, navigation }: any) {
   const [events, setEvents] = useState<Event[]>([]);
@@ -130,30 +131,12 @@ export default function EventsScreen({ route, navigation }: any) {
           {String(item.event_type) === 'Scale' && ` (1-${item.scale_max} ${item.scale_label})`}
         </Text>
       </View>
-      <View>
-        <TouchableOpacity 
-          onPress={() => setMenuVisible(menuVisible === item.id ? null : item.id)}
-          style={styles.menuButton}
-        >
-          <Text style={styles.menuIcon}>⋮</Text>
-        </TouchableOpacity>
-        {menuVisible === item.id && (
-          <View style={styles.menu}>
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => handleEdit(item)}
-            >
-              <Text style={styles.menuItemText}>Edit</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.menuItem}
-              onPress={() => handleDelete(item.id)}
-            >
-              <Text style={[styles.menuItemText, styles.menuItemTextDanger]}>Delete</Text>
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
+      <TouchableOpacity 
+        onPress={() => handleEdit(item)}
+        style={styles.editButton}
+      >
+        <MaterialIcons name="edit" size={20} color="#fff" />
+      </TouchableOpacity>
     </View>
   );
 
@@ -220,6 +203,7 @@ export default function EventsScreen({ route, navigation }: any) {
         }}
         event={editingEvent}
         onSave={handleSave}
+        onDelete={editingEvent ? () => handleDelete(editingEvent.id) : undefined}
       />
     </View>
   );
@@ -275,38 +259,8 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#ccc',
   },
-  menuButton: {
+  editButton: {
     padding: 8,
-  },
-  menuIcon: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  menu: {
-    position: 'absolute',
-    right: 0,
-    top: 40,
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-    minWidth: 120,
-  },
-  menuItem: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  menuItemText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  menuItemTextDanger: {
-    color: '#dc3545',
   },
   emptyText: {
     textAlign: 'center',
