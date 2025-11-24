@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { storage, Log } from '@/lib/storage';
-import { Card } from '@/components/ui/card';
 import { format } from 'date-fns';
 
 export const LogTab = () => {
@@ -27,9 +26,7 @@ export const LogTab = () => {
     return (
       <div className="space-y-4">
         <h2 className="text-2xl font-bold">Log</h2>
-        <Card className="p-8 text-center">
-          <p className="text-muted-foreground">No logs yet. Start tracking to see your history.</p>
-        </Card>
+        <p className="text-muted-foreground text-center py-8">No logs yet. Start tracking to see your history.</p>
       </div>
     );
   }
@@ -37,21 +34,19 @@ export const LogTab = () => {
   return (
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Log</h2>
-      <div className="space-y-2">
+      <div className="divide-y divide-border">
         {logs.map((log) => (
-          <Card key={log.id} className="p-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <h3 className="font-semibold">{log.event_name}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {formatValue(log)}
-                </p>
-              </div>
-              <span className="text-sm text-muted-foreground">
-                {format(new Date(log.created_at), 'MMM d, h:mm a')}
-              </span>
+          <div key={log.id} className="py-3 flex justify-between items-start">
+            <div>
+              <h3 className="font-semibold">{log.event_name}</h3>
+              <p className="text-sm text-muted-foreground">
+                {formatValue(log)}
+              </p>
             </div>
-          </Card>
+            <span className="text-sm text-muted-foreground">
+              {format(new Date(log.created_at), 'MMM d, h:mm a')}
+            </span>
+          </div>
         ))}
       </div>
     </div>

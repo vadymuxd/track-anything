@@ -48,7 +48,7 @@ const Index = () => {
         </Tabs>
 
         <Button
-          className="fixed bottom-20 right-6 rounded-full w-14 h-14 shadow-lg z-50"
+          className="fixed bottom-20 right-6 rounded-full w-14 h-14 shadow-lg z-50 bg-red-500 hover:bg-red-600"
           size="icon"
           onClick={() => setIsLogDialogOpen(true)}
         >
