@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, TextInput, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, Modal, TextInput, TouchableOpacity, StyleSheet, ScrollView, Animated } from 'react-native';
 import { Event, eventRepo } from '../lib/eventRepo';
 
 interface EventDialogProps {
@@ -15,6 +15,23 @@ export const EventDialog = ({ visible, onClose, event, onSave }: EventDialogProp
   const [scaleLabel, setScaleLabel] = useState('');
   const [scaleMax, setScaleMax] = useState('5');
   const [saving, setSaving] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    }
+  }, [visible]);
 
   useEffect(() => {
     if (event) {
@@ -66,7 +83,10 @@ export const EventDialog = ({ visible, onClose, event, onSave }: EventDialogProp
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+        <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+      </Animated.View>
+      <View style={styles.dialogContainer}>
         <View style={styles.dialog}>
           <ScrollView>
             <Text style={styles.title}>{event ? 'Edit Event' : 'Create Event'}</Text>
@@ -145,15 +165,26 @@ export const EventDialog = ({ visible, onClose, event, onSave }: EventDialogProp
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: 20,
+  },
+  backdrop: {
+    flex: 1,
+  },
+  dialogContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   dialog: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     padding: 20,
+    paddingBottom: 40,
     maxHeight: '80%',
   },
   title: {
@@ -191,8 +222,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   typeButtonActive: {
-    backgroundColor: '#007bff',
-    borderColor: '#007bff',
+    backgroundColor: '#000',
+    borderColor: '#000',
   },
   typeButtonText: {
     fontSize: 14,
@@ -223,7 +254,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 14,
     borderRadius: 8,
-    backgroundColor: '#007bff',
+    backgroundColor: '#000',
     alignItems: 'center',
   },
   saveButtonText: {

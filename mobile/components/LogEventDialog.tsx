@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Animated } from 'react-native';
 import { Event, eventRepo } from '../lib/eventRepo';
 import { logRepo } from '../lib/logRepo';
 
@@ -15,10 +15,22 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
   const [scaleValue, setScaleValue] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (visible) {
       loadEvents();
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      Animated.timing(fadeAnim, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }).start();
     }
   }, [visible]);
 
@@ -69,7 +81,10 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
   if (loading) {
     return (
       <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-        <View style={styles.overlay}>
+        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+          <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+        </Animated.View>
+        <View style={styles.dialogContainer}>
           <View style={styles.dialog}>
             <Text style={styles.title}>Log Event</Text>
             <Text style={styles.loadingText}>Loading...</Text>
@@ -82,7 +97,10 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
   if (events.length === 0) {
     return (
       <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-        <View style={styles.overlay}>
+        <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+          <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+        </Animated.View>
+        <View style={styles.dialogContainer}>
           <View style={styles.dialog}>
             <Text style={styles.title}>Log Event</Text>
             <Text style={styles.emptyText}>Create an event first to start logging.</Text>
@@ -97,7 +115,10 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
+      <Animated.View style={[styles.overlay, { opacity: fadeAnim }]}>
+        <TouchableOpacity style={styles.backdrop} onPress={onClose} activeOpacity={1} />
+      </Animated.View>
+      <View style={styles.dialogContainer}>
         <View style={styles.dialog}>
           <ScrollView>
             <Text style={styles.title}>Log Event</Text>
@@ -169,15 +190,26 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
 
 const styles = StyleSheet.create({
   overlay: {
-    flex: 1,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    padding: 20,
+  },
+  backdrop: {
+    flex: 1,
+  },
+  dialogContainer: {
+    flex: 1,
+    justifyContent: 'flex-end',
   },
   dialog: {
     backgroundColor: '#fff',
-    borderRadius: 12,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
     padding: 20,
+    paddingBottom: 40,
     maxHeight: '80%',
   },
   title: {
@@ -208,22 +240,25 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   eventOption: {
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderRadius: 20,
     marginRight: 8,
+    backgroundColor: '#fff',
   },
   eventOptionActive: {
-    backgroundColor: '#007bff',
-    borderColor: '#007bff',
+    backgroundColor: '#fff',
+    borderColor: '#000',
+    borderWidth: 2,
   },
   eventOptionText: {
     fontSize: 14,
-    color: '#666',
+    color: '#999',
   },
   eventOptionTextActive: {
-    color: '#fff',
+    color: '#000',
     fontWeight: '600',
   },
   scaleButtons: {
@@ -242,8 +277,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   scaleButtonActive: {
-    backgroundColor: '#007bff',
-    borderColor: '#007bff',
+    backgroundColor: '#000',
+    borderColor: '#000',
   },
   scaleButtonText: {
     fontSize: 16,
@@ -277,7 +312,7 @@ const styles = StyleSheet.create({
     flex: 1,
     padding: 14,
     borderRadius: 8,
-    backgroundColor: '#007bff',
+    backgroundColor: '#000',
     alignItems: 'center',
   },
   saveButtonText: {
@@ -288,7 +323,7 @@ const styles = StyleSheet.create({
   closeButton: {
     padding: 14,
     borderRadius: 8,
-    backgroundColor: '#007bff',
+    backgroundColor: '#000',
     alignItems: 'center',
     marginTop: 16,
   },

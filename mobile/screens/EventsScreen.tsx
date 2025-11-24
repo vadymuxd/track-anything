@@ -4,7 +4,7 @@ import { eventRepo, Event } from '../lib/eventRepo';
 import { logRepo } from '../lib/logRepo';
 import { EventDialog } from '../components/EventDialog';
 
-export default function EventsScreen() {
+export default function EventsScreen({ route, navigation }: any) {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -34,6 +34,15 @@ export default function EventsScreen() {
   useEffect(() => {
     loadEvents();
   }, []);
+
+  useEffect(() => {
+    if (route?.params?.openDialog) {
+      setEditingEvent(null);
+      setIsDialogOpen(true);
+      // Reset the param
+      navigation.setParams({ openDialog: false });
+    }
+  }, [route?.params?.openDialog]);
 
   const handleDelete = async (id: string) => {
     Alert.alert(
@@ -115,19 +124,6 @@ export default function EventsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Events</Text>
-        <TouchableOpacity 
-          style={styles.addButton} 
-          onPress={() => {
-            setEditingEvent(null);
-            setIsDialogOpen(true);
-          }}
-        >
-          <Text style={styles.addButtonText}>+</Text>
-        </TouchableOpacity>
-      </View>
-
       {events.length === 0 ? (
         <Text style={styles.emptyText}>No events yet. Create your first event to get started.</Text>
       ) : (
@@ -160,13 +156,9 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     alignItems: 'center',
     marginBottom: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
   },
   addButton: {
     width: 40,

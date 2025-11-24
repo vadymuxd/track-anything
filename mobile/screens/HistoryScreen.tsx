@@ -48,10 +48,14 @@ export default function HistoryScreen() {
     let data: number[] = [];
 
     if (timeframe === 'week') {
-      // Last 7 days
+      // Last 7 days (Monday to Sunday)
+      const today = new Date(now);
+      const currentDay = today.getDay();
+      const daysFromMonday = currentDay === 0 ? 6 : currentDay - 1;
+      
       for (let i = 6; i >= 0; i--) {
         const date = new Date(now);
-        date.setDate(date.getDate() - i);
+        date.setDate(date.getDate() - daysFromMonday - (6 - i));
         const dateStr = date.toISOString().split('T')[0];
         const dayLogs = eventLogs.filter(log => 
           log.created_at.split('T')[0] === dateStr
@@ -66,13 +70,13 @@ export default function HistoryScreen() {
             : 0;
         }
         
-        const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        labels.push(dayNames[date.getDay()]);
+        const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+        labels.push(dayNames[i]);
         data.push(Math.round(value * 10) / 10);
       }
     } else if (timeframe === 'month') {
-      // Last 30 days (show every 5th day)
-      for (let i = 25; i >= 0; i -= 5) {
+      // Last 28 days
+      for (let i = 27; i >= 0; i--) {
         const date = new Date(now);
         date.setDate(date.getDate() - i);
         const dateStr = date.toISOString().split('T')[0];
@@ -89,8 +93,8 @@ export default function HistoryScreen() {
             : 0;
         }
         
-        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        labels.push(`${monthNames[date.getMonth()]} ${date.getDate()}`);
+        // Show day number only
+        labels.push(String(date.getDate()));
         data.push(Math.round(value * 10) / 10);
       }
     } else {
@@ -134,7 +138,6 @@ export default function HistoryScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>History</Text>
         <Text style={styles.loadingText}>Loading...</Text>
       </View>
     );
@@ -143,7 +146,6 @@ export default function HistoryScreen() {
   if (events.length === 0) {
     return (
       <View style={styles.container}>
-        <Text style={styles.title}>History</Text>
         <View style={styles.emptyCard}>
           <Text style={styles.emptyText}>Create an event first to see history.</Text>
         </View>
@@ -157,22 +159,28 @@ export default function HistoryScreen() {
     backgroundGradientFrom: '#ffffff',
     backgroundGradientTo: '#ffffff',
     decimalPlaces: 1,
-    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+    color: (opacity = 1) => `rgba(0, 0, 0, 1)`,
+    fillShadowGradient: '#000',
+    fillShadowGradientOpacity: 1,
     labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
     style: {
-      borderRadius: 16,
+      borderRadius: 0,
+    },
+    propsForBackgroundLines: {
+      strokeDasharray: '2,4',
+      stroke: '#e0e0e0',
+      strokeWidth: 1,
     },
     propsForDots: {
       r: '4',
       strokeWidth: '2',
       stroke: '#000',
+      fill: '#000',
     },
   };
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <Text style={styles.title}>History</Text>
-
       {/* Event Selector */}
       <View style={styles.selectorCard}>
         <Text style={styles.selectorLabel}>Select Event</Text>
@@ -230,7 +238,7 @@ export default function HistoryScreen() {
         <Text style={styles.chartTitle}>Line Chart</Text>
         <LineChart
           data={chartData}
-          width={screenWidth - 48}
+          width={screenWidth - 16}
           height={220}
           chartConfig={chartConfig}
           bezier
@@ -242,6 +250,7 @@ export default function HistoryScreen() {
           withVerticalLabels
           withHorizontalLabels
           fromZero
+          withScrollableDot={false}
         />
       </View>
 
@@ -250,7 +259,7 @@ export default function HistoryScreen() {
         <Text style={styles.chartTitle}>Bar Chart</Text>
         <BarChart
           data={chartData}
-          width={screenWidth - 48}
+          width={screenWidth - 16}
           height={220}
           chartConfig={chartConfig}
           style={styles.chart}
@@ -272,11 +281,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: 16,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 16,
   },
   loadingText: {
     textAlign: 'center',
@@ -306,22 +310,25 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   eventOption: {
-    padding: 12,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderWidth: 2,
+    borderColor: '#e0e0e0',
+    borderRadius: 20,
     marginRight: 8,
+    backgroundColor: '#fff',
   },
   eventOptionActive: {
-    backgroundColor: '#007bff',
-    borderColor: '#007bff',
+    backgroundColor: '#fff',
+    borderColor: '#000',
+    borderWidth: 2,
   },
   eventOptionText: {
     fontSize: 14,
-    color: '#666',
+    color: '#999',
   },
   eventOptionTextActive: {
-    color: '#fff',
+    color: '#000',
     fontWeight: '600',
   },
   tabsContainer: {
@@ -349,15 +356,15 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   chartCard: {
-    backgroundColor: '#f8f9fa',
-    padding: 16,
-    borderRadius: 8,
+    backgroundColor: '#fff',
+    paddingVertical: 16,
     marginBottom: 16,
   },
   chartTitle: {
     fontSize: 14,
     fontWeight: '600',
     marginBottom: 16,
+    paddingHorizontal: 0,
   },
   chart: {
     marginVertical: 8,
