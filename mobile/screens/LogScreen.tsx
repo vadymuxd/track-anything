@@ -1,12 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { logRepo, Log } from '../lib/logRepo';
 import { eventRepo, Event } from '../lib/eventRepo';
+import { LogEventDialog } from '../components/LogEventDialog';
 
 export default function LogScreen() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -25,6 +27,10 @@ export default function LogScreen() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogSaved = () => {
+    loadData();
   };
 
   const formatValue = (log: Log) => {
@@ -79,6 +85,19 @@ export default function LogScreen() {
           ItemSeparatorComponent={() => <View style={styles.separator} />}
         />
       )}
+      
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => setIsDialogOpen(true)}
+      >
+        <Text style={styles.fabText}>+</Text>
+      </TouchableOpacity>
+
+      <LogEventDialog
+        visible={isDialogOpen}
+        onClose={() => setIsDialogOpen(false)}
+        onSave={handleLogSaved}
+      />
     </View>
   );
 }
@@ -119,5 +138,26 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 32,
     paddingHorizontal: 16,
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 80,
+    right: 24,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: '#dc3545',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  fabText: {
+    fontSize: 32,
+    color: '#fff',
+    fontWeight: '300',
   },
 });
