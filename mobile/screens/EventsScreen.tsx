@@ -3,6 +3,8 @@ import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react
 import { eventRepo, Event } from '../lib/eventRepo';
 import { logRepo, Log } from '../lib/logRepo';
 import { EventDialog } from '../components/EventDialog';
+import { useFocusEffect } from '@react-navigation/native';
+import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
 
 export default function EventsScreen({ route, navigation }: any) {
   const [events, setEvents] = useState<Event[]>([]);
@@ -36,8 +38,23 @@ export default function EventsScreen({ route, navigation }: any) {
     }
   };
 
+  useFocusEffect(
+    React.useCallback(() => {
+      loadEvents();
+    }, [])
+  );
+
+  // Listen for data updates from anywhere in the app
   useEffect(() => {
-    loadEvents();
+    const handleDataUpdate = () => {
+      loadEvents();
+    };
+
+    dataEmitter.on(DATA_UPDATED_EVENT, handleDataUpdate);
+
+    return () => {
+      dataEmitter.off(DATA_UPDATED_EVENT, handleDataUpdate);
+    };
   }, []);
 
   useEffect(() => {
@@ -89,9 +106,9 @@ export default function EventsScreen({ route, navigation }: any) {
     
     const eventType = String(event.event_type);
     if (eventType === 'Count') {
-      return 'Logged';
+      return '1';
     }
-    return `${log.value} ${event.scale_label || ''}`;
+    return `${log.value}${event.scale_label ? ' ' + event.scale_label : ''}`;
   };
 
   const formatDate = (dateString: string) => {
@@ -140,15 +157,17 @@ export default function EventsScreen({ route, navigation }: any) {
     </View>
   );
 
-  const renderLog = ({ item }: { item: Log }) => (
-    <View style={styles.logItem}>
-      <View style={styles.logContent}>
-        <Text style={styles.eventName}>{item.event_name}</Text>
-        <Text style={styles.value}>{formatValue(item)}</Text>
+  const renderLog = ({ item }: { item: Log }) => {
+    console.log('Rendering log:', item);
+    return (
+      <View style={styles.logItem}>
+        <View style={styles.logContent}>
+          <Text style={styles.logText}>{item.event_name}, {formatValue(item)}</Text>
+        </View>
+        <Text style={styles.date}>{formatDate(item.created_at)}</Text>
       </View>
-      <Text style={styles.date}>{formatDate(item.created_at)}</Text>
-    </View>
-  );
+    );
+  };
 
   if (loading) {
     return (
@@ -312,6 +331,7 @@ const styles = StyleSheet.create({
   },
   logContent: {
     flex: 1,
+    marginRight: 12,
   },
   value: {
     fontSize: 14,
@@ -320,6 +340,11 @@ const styles = StyleSheet.create({
   date: {
     fontSize: 14,
     color: '#666',
+    flexShrink: 0,
+  },
+  logText: {
+    fontSize: 16,
+    color: '#000',
   },
   logSeparator: {
     height: 1,

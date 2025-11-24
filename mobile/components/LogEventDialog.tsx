@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Animated } from 'react-native';
 import { Event, eventRepo } from '../lib/eventRepo';
 import { logRepo } from '../lib/logRepo';
+import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
 
 interface LogEventDialogProps {
   visible: boolean;
@@ -64,6 +65,9 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
         event_name: selectedEvent,
         value,
       });
+
+      // Emit event to notify all screens to refresh
+      dataEmitter.emit(DATA_UPDATED_EVENT);
 
       setScaleValue(1);
       onSave();

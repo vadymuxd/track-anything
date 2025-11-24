@@ -3,6 +3,8 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from
 import { eventRepo, Event } from '../lib/eventRepo';
 import { logRepo, Log } from '../lib/logRepo';
 import { LineChart, BarChart } from 'react-native-chart-kit';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
 
 type Timeframe = 'week' | 'month' | 'year';
 
@@ -12,10 +14,7 @@ export default function HistoryScreen() {
   const [selectedEvent, setSelectedEvent] = useState<string>('');
   const [timeframe, setTimeframe] = useState<Timeframe>('week');
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadData();
-  }, []);
+  const navigation = useNavigation();
 
   const loadData = async () => {
     try {
@@ -35,6 +34,25 @@ export default function HistoryScreen() {
       setLoading(false);
     }
   };
+
+  useFocusEffect(
+    React.useCallback(() => {
+      loadData();
+    }, [])
+  );
+
+  // Listen for data updates from anywhere in the app
+  useEffect(() => {
+    const handleDataUpdate = () => {
+      loadData();
+    };
+
+    dataEmitter.on(DATA_UPDATED_EVENT, handleDataUpdate);
+
+    return () => {
+      dataEmitter.off(DATA_UPDATED_EVENT, handleDataUpdate);
+    };
+  }, []);
 
   const chartData = useMemo(() => {
     if (!selectedEvent) return { labels: [], datasets: [{ data: [0] }] };
@@ -159,7 +177,8 @@ export default function HistoryScreen() {
     backgroundGradientFrom: '#ffffff',
     backgroundGradientTo: '#ffffff',
     decimalPlaces: 1,
-    color: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+    color: (opacity = 1) => `rgba(0, 0, 0, 1)`,
+    strokeWidth: 2,
     fillShadowGradient: '#000',
     fillShadowGradientOpacity: 1,
     labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
@@ -222,30 +241,6 @@ export default function HistoryScreen() {
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      {/* Event Selector */}
-      <View style={styles.selectorCard}>
-        <Text style={styles.selectorLabel}>Select Event</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.eventSelector}>
-          {events.map((event) => (
-            <TouchableOpacity
-              key={event.id}
-              style={[
-                styles.eventOption,
-                selectedEvent === event.event_name && styles.eventOptionActive
-              ]}
-              onPress={() => setSelectedEvent(event.event_name)}
-            >
-              <Text style={[
-                styles.eventOptionText,
-                selectedEvent === event.event_name && styles.eventOptionTextActive
-              ]}>
-                {event.event_name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
       {/* Timeframe Tabs */}
       <View style={styles.tabsContainer}>
         <TouchableOpacity
@@ -274,8 +269,33 @@ export default function HistoryScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Event Selector */}
+      <View style={styles.selectorCard}>
+        <Text style={styles.selectorLabel}>Select Event</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.eventSelector}>
+          {events.map((event) => (
+            <TouchableOpacity
+              key={event.id}
+              style={[
+                styles.eventOption,
+                selectedEvent === event.event_name && styles.eventOptionActive
+              ]}
+              onPress={() => setSelectedEvent(event.event_name)}
+            >
+              <Text style={[
+                styles.eventOptionText,
+                selectedEvent === event.event_name && styles.eventOptionTextActive
+              ]}>
+                {event.event_name}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
       {/* Line Chart */}
       <View style={styles.chartCard}>
+
         <Text style={styles.chartTitle}>Line Chart</Text>
         <LineChart
           data={chartData}
@@ -323,7 +343,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   content: {
-    paddingVertical: 16,
+    paddingBottom: 16,
   },
   loadingText: {
     textAlign: 'center',
@@ -378,10 +398,8 @@ const styles = StyleSheet.create({
   tabsContainer: {
     flexDirection: 'row',
     backgroundColor: '#f0f0f0',
-    borderRadius: 8,
     padding: 4,
     marginBottom: 16,
-    marginHorizontal: 16,
   },
   tab: {
     flex: 1,
