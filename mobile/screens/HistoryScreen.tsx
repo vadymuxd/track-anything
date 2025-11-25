@@ -317,9 +317,6 @@ export default function HistoryScreen() {
                   chartConfig={{
                     ...barChartConfig,
                     barPercentage: timeframe === 'month' ? 0.3 : barPercentage,
-                    propsForLabels: {
-                      fontSize: 10,
-                    },
                   }}
                   style={[styles.barChart, { marginLeft: -20 }]} // Negative margin to pull chart left
                   segments={4}
