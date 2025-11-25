@@ -199,9 +199,6 @@ export default function HistoryScreen() {
     propsForDots: {
       r: '0',
     },
-    propsForLabels: {
-      fontSize: 10,
-    },
     formatYLabel: (value: string) => value === '0' ? '' : value,
   }), []);
 
@@ -236,11 +233,9 @@ export default function HistoryScreen() {
     // Move the value labels slightly down so there is a visible gap
     propsForLabels: {
       dy: -5,
-      fontSize: 10,
     },
     propsForVerticalLabels: {
       dx: -10, // Move Y-axis labels closer to the chart
-      fontSize: 10,
     },
   }), [barPercentage]);
 
