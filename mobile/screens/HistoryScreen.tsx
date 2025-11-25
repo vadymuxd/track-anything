@@ -1,19 +1,21 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { eventRepo, Event } from '../lib/eventRepo';
 import { logRepo, Log } from '../lib/logRepo';
 import { LineChart, BarChart } from 'react-native-chart-kit';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
+import { MaterialIcons } from '@expo/vector-icons';
 
 type Timeframe = 'week' | 'month' | 'year';
+type ChartType = 'line' | 'bar';
 
 export default function HistoryScreen() {
   const [events, setEvents] = useState<Event[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<string>('');
   const [timeframe, setTimeframe] = useState<Timeframe>('week');
   const [loading, setLoading] = useState(true);
+  const [chartTypes, setChartTypes] = useState<Record<string, ChartType>>({});
   const navigation = useNavigation();
 
   const loadData = async () => {
@@ -25,8 +27,15 @@ export default function HistoryScreen() {
       setEvents(allEvents);
       setLogs(allLogs);
       
-      if (allEvents.length > 0 && !selectedEvent) {
-        setSelectedEvent(allEvents[0].event_name);
+      // Initialize chart types for all events
+      const initialChartTypes: Record<string, ChartType> = {};
+      allEvents.forEach(event => {
+        if (!(event.event_name in chartTypes)) {
+          initialChartTypes[event.event_name] = 'line';
+        }
+      });
+      if (Object.keys(initialChartTypes).length > 0) {
+        setChartTypes(prev => ({ ...prev, ...initialChartTypes }));
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -54,11 +63,16 @@ export default function HistoryScreen() {
     };
   }, []);
 
-  const chartData = useMemo(() => {
-    if (!selectedEvent) return { labels: [], datasets: [{ data: [0] }] };
+  const toggleChartType = (eventName: string) => {
+    setChartTypes(prev => ({
+      ...prev,
+      [eventName]: prev[eventName] === 'line' ? 'bar' : 'line'
+    }));
+  };
 
-    const eventLogs = logs.filter(log => log.event_name === selectedEvent);
-    const event = events.find(e => e.event_name === selectedEvent);
+  const getChartDataForEvent = (eventName: string) => {
+    const eventLogs = logs.filter(log => log.event_name === eventName);
+    const event = events.find(e => e.event_name === eventName);
     if (!event) return { labels: [], datasets: [{ data: [0] }] };
 
     const now = new Date();
@@ -68,12 +82,14 @@ export default function HistoryScreen() {
     if (timeframe === 'week') {
       // Last 7 days (Monday to Sunday)
       const today = new Date(now);
-      const currentDay = today.getDay();
+      const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
       const daysFromMonday = currentDay === 0 ? 6 : currentDay - 1;
       
-      for (let i = 6; i >= 0; i--) {
+      const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      
+      for (let i = 0; i < 7; i++) {
         const date = new Date(now);
-        date.setDate(date.getDate() - daysFromMonday - (6 - i));
+        date.setDate(date.getDate() - daysFromMonday + i);
         const dateStr = date.toISOString().split('T')[0];
         const dayLogs = eventLogs.filter(log => 
           log.created_at.split('T')[0] === dateStr
@@ -88,7 +104,6 @@ export default function HistoryScreen() {
             : 0;
         }
         
-        const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
         labels.push(dayNames[i]);
         data.push(Math.round(value * 10) / 10);
       }
@@ -153,24 +168,17 @@ export default function HistoryScreen() {
       labels,
       datasets: [{ data: data.length > 0 ? data : [0] }]
     };
-  }, [selectedEvent, timeframe, events, logs]);
+  };
 
-  const yAxisLabel = useMemo(() => {
-    const event = events.find(e => e.event_name === selectedEvent);
-    if (!event) return '';
-    if (String(event.event_type) === 'Count') return 'Count';
-    return `Avg ${event.scale_label || 'Value'}`;
-  }, [selectedEvent, events]);
-
-  const screenWidth = Dimensions.get('window').width;
+  const { width: screenWidth } = useWindowDimensions();
+  const chartWidth = screenWidth - 32; // Standard 16px padding on each side
   
-  // Dynamic bar width based on number of data points
+  // Dynamic bar width based on timeframe (relative width so gaps stay visible)
   const barPercentage = useMemo(() => {
-    const dataLength = chartData.datasets[0]?.data.length || 7;
-    if (timeframe === 'week') return 0.7;
-    if (timeframe === 'month') return 0.5;
+    if (timeframe === 'week') return 1.05; // 50% wider than 0.7
+    if (timeframe === 'month') return 0.3; // 50% wider than 0.2
     return 0.6; // year
-  }, [timeframe, chartData]);
+  }, [timeframe]);
   
   const lineChartConfig = useMemo(() => ({
     backgroundColor: '#ffffff',
@@ -191,6 +199,9 @@ export default function HistoryScreen() {
     propsForDots: {
       r: '0',
     },
+    propsForLabels: {
+      fontSize: 10,
+    },
     formatYLabel: (value: string) => value === '0' ? '' : value,
   }), []);
 
@@ -200,24 +211,36 @@ export default function HistoryScreen() {
     backgroundGradientTo: '#ffffff',
     decimalPlaces: 1,
     color: (opacity = 1) => `rgba(0, 0, 0, 1)`,
+    strokeWidth: 0,
     fillShadowGradientFrom: '#000000',
     fillShadowGradientFromOpacity: 1,
     fillShadowGradientTo: '#000000',
     fillShadowGradientToOpacity: 1,
     labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+    // Remove outer radius so bars are crisp and align to baseline
     style: {
       borderRadius: 0,
     },
     propsForBackgroundLines: {
       strokeWidth: 0,
     },
-    barPercentage: barPercentage,
+    barPercentage,
+    barRadius: 0,
     formatYLabel: (value: string) => value === '0' ? '' : value,
     formatTopBarValue: (value: any) => {
       if (value === null || value === undefined || value === 0 || value === '0') {
         return '';
       }
       return value.toString();
+    },
+    // Move the value labels slightly down so there is a visible gap
+    propsForLabels: {
+      dy: -5,
+      fontSize: 10,
+    },
+    propsForVerticalLabels: {
+      dx: -10, // Move Y-axis labels closer to the chart
+      fontSize: 10,
     },
   }), [barPercentage]);
 
@@ -269,70 +292,73 @@ export default function HistoryScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Event Selector */}
-      <View style={styles.selectorCard}>
-        <Text style={styles.selectorLabel}>Select Event</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.eventSelector}>
-          {events.map((event) => (
-            <TouchableOpacity
-              key={event.id}
-              style={[
-                styles.eventOption,
-                selectedEvent === event.event_name && styles.eventOptionActive
-              ]}
-              onPress={() => setSelectedEvent(event.event_name)}
-            >
-              <Text style={[
-                styles.eventOptionText,
-                selectedEvent === event.event_name && styles.eventOptionTextActive
-              ]}>
-                {event.event_name}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Line Chart */}
-      <View style={styles.chartCard}>
-
-        <Text style={styles.chartTitle}>Line Chart</Text>
-        <LineChart
-          data={chartData}
-          width={screenWidth}
-          height={220}
-          chartConfig={lineChartConfig}
-          bezier
-          style={styles.chart}
-          yAxisLabel=""
-          yAxisSuffix=""
-          withInnerLines={false}
-          withOuterLines={false}
-          withVerticalLabels
-          withHorizontalLabels
-          fromZero
-          withDots={false}
-          withScrollableDot={false}
-        />
-      </View>
-
-      {/* Bar Chart */}
-      <View style={styles.chartCard}>
-        <Text style={styles.chartTitle}>Bar Chart</Text>
-        <BarChart
-          data={chartData}
-          width={screenWidth - 32}
-          height={220}
-          chartConfig={barChartConfig}
-          style={styles.chart}
-          yAxisLabel=""
-          yAxisSuffix=""
-          withInnerLines={false}
-          fromZero
-          showValuesOnTopOfBars
-          flatColor
-        />
-      </View>
+      {/* Charts for all events */}
+      {events.map((event) => {
+        const chartData = getChartDataForEvent(event.event_name);
+        const isBarChart = chartTypes[event.event_name] === 'bar';
+        
+        return (
+          <View key={event.id} style={styles.chartCard}>
+            <View style={styles.chartHeader}>
+              <Text style={styles.chartTitle}>{event.event_name}</Text>
+              <TouchableOpacity 
+                style={styles.toggleButton}
+                onPress={() => toggleChartType(event.event_name)}
+              >
+                <MaterialIcons 
+                  name={isBarChart ? "show-chart" : "bar-chart"} 
+                  size={20} 
+                  color="#333" 
+                />
+              </TouchableOpacity>
+            </View>
+            
+            {isBarChart ? (
+              <View style={{ alignItems: 'center' }}>
+                <BarChart
+                  data={chartData}
+                  width={chartWidth + 20} // Add width to compensate for negative margin
+                  height={230}
+                  chartConfig={{
+                    ...barChartConfig,
+                    barPercentage: timeframe === 'month' ? 0.3 : barPercentage,
+                    propsForLabels: {
+                      fontSize: 10,
+                    },
+                  }}
+                  style={[styles.barChart, { marginLeft: -20 }]} // Negative margin to pull chart left
+                  segments={4}
+                  yAxisLabel=""
+                  yAxisSuffix=""
+                  withInnerLines={false}
+                  fromZero
+                  showValuesOnTopOfBars
+                />
+              </View>
+            ) : (
+              <View style={{ alignItems: 'center' }}>
+                <LineChart
+                  data={chartData}
+                  width={chartWidth + 20} // Add width to compensate for negative margin
+                  height={220}
+                  chartConfig={lineChartConfig}
+                  bezier
+                  style={[styles.chart, { marginLeft: -20 }]} // Negative margin to pull chart left
+                  yAxisLabel=""
+                  yAxisSuffix=""
+                  withInnerLines={false}
+                  withOuterLines={false}
+                  withVerticalLabels
+                  withHorizontalLabels
+                  fromZero
+                  withDots={false}
+                  withScrollableDot={false}
+                />
+              </View>
+            )}
+          </View>
+        );
+      })}
     </ScrollView>
   );
 }
@@ -359,41 +385,6 @@ const styles = StyleSheet.create({
   emptyText: {
     textAlign: 'center',
     color: '#666',
-  },
-  selectorCard: {
-    marginBottom: 16,
-    paddingHorizontal: 16,
-  },
-  selectorLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-    color: '#333',
-  },
-  eventSelector: {
-    marginBottom: 8,
-  },
-  eventOption: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderWidth: 2,
-    borderColor: '#e0e0e0',
-    borderRadius: 20,
-    marginRight: 8,
-    backgroundColor: '#fff',
-  },
-  eventOptionActive: {
-    backgroundColor: '#fff',
-    borderColor: '#000',
-    borderWidth: 2,
-  },
-  eventOptionText: {
-    fontSize: 14,
-    color: '#999',
-  },
-  eventOptionTextActive: {
-    color: '#000',
-    fontWeight: '600',
   },
   tabsContainer: {
     flexDirection: 'row',
@@ -423,14 +414,29 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     marginBottom: 16,
   },
+  chartHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginBottom: 16,
+  },
   chartTitle: {
     fontSize: 14,
     fontWeight: '600',
-    marginBottom: 16,
-    paddingHorizontal: 16,
+  },
+  toggleButton: {
+    padding: 8,
+    borderRadius: 6,
+    backgroundColor: '#f0f0f0',
   },
   chart: {
     marginVertical: 8,
     borderRadius: 8,
+  },
+  barChart: {
+    marginVertical: 8,
+    borderRadius: 8,
+    paddingBottom: 0,
   },
 });
