@@ -159,7 +159,7 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
         </Animated.View>
         <Animated.View style={[styles.dialogContainer, { transform: [{ translateY: dialogTranslateY }] }]}>
           <View style={styles.dialog}>
-          <ScrollView>
+          <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.headerRow}>
               <Text style={styles.title}>Log Event</Text>
               <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>

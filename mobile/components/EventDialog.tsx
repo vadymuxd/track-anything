@@ -109,7 +109,7 @@ export const EventDialog = ({ visible, onClose, event, onSave, onDelete }: Event
         </Animated.View>
         <Animated.View style={[styles.dialogContainer, { transform: [{ translateY: dialogTranslateY }] }]}>
           <View style={styles.dialog}>
-          <ScrollView>
+          <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.headerRow}>
               <Text style={styles.title}>{event ? 'Edit Event' : 'Create Event'}</Text>
               <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
