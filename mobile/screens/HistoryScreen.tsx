@@ -258,7 +258,7 @@ export default function HistoryScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
       {/* Timeframe Tabs */}
       <View style={styles.tabsContainer}>
         <TouchableOpacity

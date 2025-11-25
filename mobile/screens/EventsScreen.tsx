@@ -163,6 +163,7 @@ export default function EventsScreen({ route, navigation }: any) {
   return (
     <View style={styles.container}>
       <FlatList
+        showsVerticalScrollIndicator={false}
         ListHeaderComponent={
           <>
             {events.length === 0 ? (
