@@ -61,7 +61,7 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
       const allEvents = await eventRepo.list();
       setEvents(allEvents);
       if (allEvents.length > 0) {
-        setSelectedEvent(allEvents[0].event_name);
+        setSelectedEvent(allEvents[0].id);
       }
     } catch (error) {
       console.error('Error loading events:', error);
@@ -73,7 +73,7 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
   const handleLog = async () => {
     if (!selectedEvent) return;
 
-    const event = events.find(e => e.event_name === selectedEvent);
+    const event = events.find(e => e.id === selectedEvent);
     if (!event) return;
 
     const value = event.event_type === 'Count' ? 1 : scaleValue;
@@ -82,7 +82,7 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
     try {
       await logRepo.create({
         event_id: event.id,
-        event_name: selectedEvent,
+        event_name: event.event_name,
         value,
       });
 
@@ -100,7 +100,7 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
     }
   };
 
-  const selectedEventData = events.find(e => e.event_name === selectedEvent);
+  const selectedEventData = events.find(e => e.id === selectedEvent);
 
   if (loading) {
     return (
@@ -175,13 +175,13 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
                     key={event.id}
                     style={[
                       styles.eventOption,
-                      selectedEvent === event.event_name && styles.eventOptionActive
+                      selectedEvent === event.id && styles.eventOptionActive
                     ]}
-                    onPress={() => setSelectedEvent(event.event_name)}
+                    onPress={() => setSelectedEvent(event.id)}
                   >
                     <Text style={[
                       styles.eventOptionText,
-                      selectedEvent === event.event_name && styles.eventOptionTextActive
+                      selectedEvent === event.id && styles.eventOptionTextActive
                     ]}>
                       {event.event_name}
                     </Text>

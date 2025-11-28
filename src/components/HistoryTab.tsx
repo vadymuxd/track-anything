@@ -13,15 +13,17 @@ import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { format, subDays, subMonths, startOfWeek, startOfMonth, startOfYear } from 'date-fns';
 import { toast } from 'sonner';
+import { chartPrefs, ChartType } from '@/lib/chartPrefs';
 
 type Timeframe = 'week' | 'month' | 'year';
 
 export const HistoryTab = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
-  const [selectedEvent, setSelectedEvent] = useState<string>('');
+  const [selectedEventId, setSelectedEventId] = useState<string>('');
   const [timeframe, setTimeframe] = useState<Timeframe>('week');
   const [loading, setLoading] = useState(true);
+  const [chartTypes, setChartTypes] = useState<Record<string, ChartType>>({});
 
   useEffect(() => {
     loadData();
@@ -35,8 +37,15 @@ export const HistoryTab = () => {
       ]);
       setEvents(allEvents);
       setLogs(allLogs);
-      if (allEvents.length > 0 && !selectedEvent) {
-        setSelectedEvent(allEvents[0].event_name);
+      if (allEvents.length > 0 && !selectedEventId) {
+        setSelectedEventId(allEvents[0].id);
+      }
+      // load saved chart prefs
+      try {
+        const prefs = chartPrefs.getAll();
+        setChartTypes(prev => ({ ...prev, ...prefs }));
+      } catch (e) {
+        // ignore
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -47,10 +56,14 @@ export const HistoryTab = () => {
   };
 
   const chartData = useMemo(() => {
-    if (!selectedEvent) return [];
+    if (!selectedEventId) return [];
 
-    const eventLogs = logs.filter(log => log.event_name === selectedEvent);
-    const event = events.find(e => e.event_name === selectedEvent);
+    const event = events.find(e => e.id === selectedEventId);
+    const eventLogs = logs.filter(log => {
+      // Prefer event_id match when available, fall back to event_name for older/local logs
+      if ((log as any).event_id) return (log as any).event_id === selectedEventId;
+      return log.event_name === event?.event_name;
+    });
     if (!event) return [];
 
     const now = new Date();
@@ -128,14 +141,25 @@ export const HistoryTab = () => {
     }
 
     return dataPoints;
-  }, [selectedEvent, timeframe, events, logs]);
+  }, [selectedEventId, timeframe, events, logs]);
 
   const yAxisLabel = useMemo(() => {
-    const event = events.find(e => e.event_name === selectedEvent);
+    const event = events.find(e => e.id === selectedEventId);
     if (!event) return '';
     if (event.event_type === 'Count') return 'Count';
     return `Avg ${event.scale_label || 'Value'}`;
-  }, [selectedEvent, events]);
+  }, [selectedEventId, events]);
+
+
+  const toggleChartType = (eventId: string) => {
+    const nextType: ChartType = chartTypes[eventId] === 'bar' ? 'line' : 'bar';
+    setChartTypes(prev => ({ ...prev, [eventId]: nextType }));
+    try {
+      chartPrefs.set(eventId, nextType);
+    } catch {
+      // ignore
+    }
+  };
 
   if (loading) {
     return (
@@ -159,13 +183,13 @@ export const HistoryTab = () => {
       <h2 className="text-2xl font-bold">History</h2>
       
       <div className="space-y-4">
-        <Select value={selectedEvent} onValueChange={setSelectedEvent}>
+        <Select value={selectedEventId} onValueChange={setSelectedEventId}>
           <SelectTrigger>
             <SelectValue placeholder="Select an event" />
           </SelectTrigger>
           <SelectContent>
             {events.map((event) => (
-              <SelectItem key={event.id} value={event.event_name}>
+              <SelectItem key={event.id} value={event.id}>
                 {event.event_name}
               </SelectItem>
             ))}
@@ -181,65 +205,35 @@ export const HistoryTab = () => {
         </Tabs>
 
         <Card className="p-4">
-          <h3 className="text-sm font-medium mb-4">Line Chart</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-medium">{chartTypes[selectedEventId] === 'bar' ? 'Bar Chart' : 'Line Chart'}</h3>
+            <div>
+              <button
+                className="px-2 py-1 rounded bg-muted text-sm"
+                onClick={() => toggleChartType(selectedEventId)}
+              >
+                Switch to {chartTypes[selectedEventId] === 'bar' ? 'Line' : 'Bar'}
+              </button>
+            </div>
+          </div>
           <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis 
-                dataKey="date" 
-                stroke="hsl(var(--foreground))"
-                fontSize={12}
-              />
-              <YAxis 
-                label={{ value: yAxisLabel, angle: -90, position: 'insideLeft' }}
-                stroke="hsl(var(--foreground))"
-                fontSize={12}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '0.5rem'
-                }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="value" 
-                stroke="hsl(var(--foreground))" 
-                strokeWidth={2}
-                dot={{ fill: 'hsl(var(--foreground))' }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </Card>
-
-        <Card className="p-4">
-          <h3 className="text-sm font-medium mb-4">Bar Chart</h3>
-          <ResponsiveContainer width="100%" height={250}>
-            <BarChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis 
-                dataKey="date" 
-                stroke="hsl(var(--foreground))"
-                fontSize={12}
-              />
-              <YAxis 
-                label={{ value: yAxisLabel, angle: -90, position: 'insideLeft' }}
-                stroke="hsl(var(--foreground))"
-                fontSize={12}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: 'hsl(var(--card))',
-                  border: '1px solid hsl(var(--border))',
-                  borderRadius: '0.5rem'
-                }}
-              />
-              <Bar 
-                dataKey="value" 
-                fill="hsl(var(--foreground))"
-              />
-            </BarChart>
+            {chartTypes[selectedEventId] === 'bar' ? (
+              <BarChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="date" stroke="hsl(var(--foreground))" fontSize={12} />
+                <YAxis label={{ value: yAxisLabel, angle: -90, position: 'insideLeft' }} stroke="hsl(var(--foreground))" fontSize={12} />
+                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} />
+                <Bar dataKey="value" fill="hsl(var(--foreground))" />
+              </BarChart>
+            ) : (
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                <XAxis dataKey="date" stroke="hsl(var(--foreground))" fontSize={12} />
+                <YAxis label={{ value: yAxisLabel, angle: -90, position: 'insideLeft' }} stroke="hsl(var(--foreground))" fontSize={12} />
+                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} />
+                <Line type="monotone" dataKey="value" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ fill: 'hsl(var(--foreground))' }} />
+              </LineChart>
+            )}
           </ResponsiveContainer>
         </Card>
       </div>

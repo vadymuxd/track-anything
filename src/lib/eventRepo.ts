@@ -50,14 +50,33 @@ export const eventRepo = {
   },
 
   async update(id: string, updates: EventUpdate): Promise<Event> {
+    // fetch current event to detect name changes
+    const current = await eventRepo.getById(id);
+
     const { data, error } = await supabase
       .from('events')
       .update(updates)
       .eq('id', id)
       .select()
       .single();
-    
+
     if (error) throw error;
+
+    // if the event name changed, update all related logs to use the new name
+    try {
+      if (updates.event_name && current && current.event_name !== updates.event_name) {
+        await supabase
+          .from('logs')
+          .update({ event_name: updates.event_name, updated_at: new Date().toISOString() })
+          .eq('event_id', id);
+      }
+    } catch (e) {
+      // Log the error but do not fail the main update operation
+      // Consumers can re-run a migration or manual update if needed
+      // eslint-disable-next-line no-console
+      console.error('Failed to backfill logs with new event_name:', e);
+    }
+
     return data;
   },
 

@@ -28,8 +28,8 @@ export default function EventsScreen({ route, navigation }: any) {
       // Load log counts
       const counts: Record<string, number> = {};
       for (const event of data) {
-        const logs = await logRepo.listByEventName(event.event_name);
-        counts[event.event_name] = logs.length;
+        const logsForEvent = await logRepo.listByEvent(event.id);
+        counts[event.id] = logsForEvent.length;
       }
       setLogCounts(counts);
     } catch (error: any) {
@@ -102,7 +102,7 @@ export default function EventsScreen({ route, navigation }: any) {
   };
 
   const formatValue = (log: Log) => {
-    const event = events.find(e => e.event_name === log.event_name);
+    const event = events.find(e => (log as any).event_id ? e.id === (log as any).event_id : e.event_name === log.event_name);
     if (!event) return log.value.toString();
     
     const eventType = String(event.event_type);
@@ -127,7 +127,7 @@ export default function EventsScreen({ route, navigation }: any) {
       <View style={styles.eventInfo}>
         <Text style={styles.eventName}>{item.event_name}</Text>
         <Text style={styles.eventMeta}>
-          {logCounts[item.event_name] || 0} entries • {String(item.event_type)}
+          {logCounts[item.id] || 0} entries • {String(item.event_type)}
           {String(item.event_type) === 'Scale' && ` (1-${item.scale_max} ${item.scale_label})`}
         </Text>
       </View>
@@ -141,11 +141,11 @@ export default function EventsScreen({ route, navigation }: any) {
   );
 
   const renderLog = ({ item }: { item: Log }) => {
-    console.log('Rendering log:', item);
+    const event = events.find(e => (item as any).event_id ? e.id === (item as any).event_id : e.event_name === item.event_name);
     return (
       <View style={styles.logItem}>
         <View style={styles.logContent}>
-          <Text style={styles.logText}>{item.event_name}, {formatValue(item)}</Text>
+          <Text style={styles.logText}>{event ? event.event_name : item.event_name}, {formatValue(item)}</Text>
         </View>
         <Text style={styles.date}>{formatDate(item.created_at)}</Text>
       </View>

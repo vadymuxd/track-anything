@@ -45,7 +45,7 @@ export const LogEventDialog = ({ open, onOpenChange, onSave }: LogEventDialogPro
       const allEvents = await eventRepo.list();
       setEvents(allEvents);
       if (allEvents.length > 0 && !selectedEvent) {
-        setSelectedEvent(allEvents[0].event_name);
+        setSelectedEvent(allEvents[0].id);
       }
     } catch (error) {
       console.error('Error loading events:', error);
@@ -58,7 +58,7 @@ export const LogEventDialog = ({ open, onOpenChange, onSave }: LogEventDialogPro
   const handleLog = async () => {
     if (!selectedEvent) return;
 
-    const event = events.find(e => e.event_name === selectedEvent);
+    const event = events.find(e => e.id === selectedEvent);
     if (!event) return;
 
     const value = event.event_type === 'Count' ? 1 : scaleValue;
@@ -67,7 +67,7 @@ export const LogEventDialog = ({ open, onOpenChange, onSave }: LogEventDialogPro
     try {
       await logRepo.create({
         event_id: event.id,
-        event_name: selectedEvent,
+        event_name: event.event_name,
         value,
       });
 
@@ -83,7 +83,7 @@ export const LogEventDialog = ({ open, onOpenChange, onSave }: LogEventDialogPro
     }
   };
 
-  const selectedEventData = events.find(e => e.event_name === selectedEvent);
+  const selectedEventData = events.find(e => e.id === selectedEvent);
 
   if (loading) {
     return (
@@ -135,7 +135,7 @@ export const LogEventDialog = ({ open, onOpenChange, onSave }: LogEventDialogPro
               </SelectTrigger>
               <SelectContent>
                 {events.map((event) => (
-                  <SelectItem key={event.id} value={event.event_name}>
+                  <SelectItem key={event.id} value={event.id}>
                     {event.event_name}
                   </SelectItem>
                 ))}

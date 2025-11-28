@@ -6,6 +6,7 @@ import { LineChart, BarChart } from 'react-native-chart-kit';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
 import { MaterialIcons } from '@expo/vector-icons';
+import { chartPrefs, ChartType } from '../lib/chartPrefs';
 
 type Timeframe = 'week' | 'month' | 'year';
 type ChartType = 'line' | 'bar';
@@ -27,16 +28,16 @@ export default function HistoryScreen() {
       setEvents(allEvents);
       setLogs(allLogs);
       
-      // Initialize chart types for all events
+      // Initialize chart types for all events (use event.id as key)
       const initialChartTypes: Record<string, ChartType> = {};
       allEvents.forEach(event => {
-        if (!(event.event_name in chartTypes)) {
-          initialChartTypes[event.event_name] = 'line';
+        if (!(event.id in chartTypes)) {
+          initialChartTypes[event.id] = 'line';
         }
       });
-      if (Object.keys(initialChartTypes).length > 0) {
-        setChartTypes(prev => ({ ...prev, ...initialChartTypes }));
-      }
+      // Load persisted prefs and merge (prefs override defaults)
+      const prefs = await chartPrefs.getAll();
+      setChartTypes(prev => ({ ...prev, ...initialChartTypes, ...prefs }));
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -63,16 +64,19 @@ export default function HistoryScreen() {
     };
   }, []);
 
-  const toggleChartType = (eventName: string) => {
-    setChartTypes(prev => ({
-      ...prev,
-      [eventName]: prev[eventName] === 'line' ? 'bar' : 'line'
-    }));
+  const toggleChartType = (eventId: string) => {
+    const next = (chartTypes[eventId] === 'line' ? 'bar' : 'line') as ChartType;
+    setChartTypes(prev => ({ ...prev, [eventId]: next }));
+    // persist
+    chartPrefs.set(eventId, next).catch(() => {});
   };
 
-  const getChartDataForEvent = (eventName: string) => {
-    const eventLogs = logs.filter(log => log.event_name === eventName);
-    const event = events.find(e => e.event_name === eventName);
+  const getChartDataForEvent = (eventId: string) => {
+    const event = events.find(e => e.id === eventId);
+    const eventLogs = logs.filter(log => {
+      if ((log as any).event_id) return (log as any).event_id === eventId;
+      return log.event_name === event?.event_name;
+    });
     if (!event) return { labels: [], datasets: [{ data: [0] }] };
 
     const now = new Date();
@@ -289,8 +293,8 @@ export default function HistoryScreen() {
 
       {/* Charts for all events */}
       {events.map((event) => {
-        const chartData = getChartDataForEvent(event.event_name);
-        const isBarChart = chartTypes[event.event_name] === 'bar';
+        const chartData = getChartDataForEvent(event.id);
+        const isBarChart = chartTypes[event.id] === 'bar';
         
         return (
           <View key={event.id} style={styles.chartCard}>
@@ -298,7 +302,7 @@ export default function HistoryScreen() {
               <Text style={styles.chartTitle}>{event.event_name}</Text>
               <TouchableOpacity 
                 style={styles.toggleButton}
-                onPress={() => toggleChartType(event.event_name)}
+                onPress={() => toggleChartType(event.id)}
               >
                 <MaterialIcons 
                   name={isBarChart ? "show-chart" : "bar-chart"} 

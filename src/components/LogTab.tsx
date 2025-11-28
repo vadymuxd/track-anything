@@ -30,7 +30,8 @@ export const LogTab = () => {
   };
 
   const formatValue = (log: Log) => {
-    const event = events.find(e => e.event_name === log.event_name);
+    // Prefer matching by event_id when available
+    const event = events.find(e => (log as any).event_id ? e.id === (log as any).event_id : e.event_name === log.event_name);
     if (!event) return log.value.toString();
     
     if (event.event_type === 'Count') {
@@ -61,19 +62,18 @@ export const LogTab = () => {
     <div className="space-y-4">
       <h2 className="text-2xl font-bold">Log</h2>
       <div className="divide-y divide-border">
-        {logs.map((log) => (
-          <div key={log.id} className="py-3 flex justify-between items-start">
-            <div>
-              <h3 className="font-semibold">{log.event_name}</h3>
-              <p className="text-sm text-muted-foreground">
-                {formatValue(log)}
-              </p>
+        {logs.map((log) => {
+          const event = events.find(e => (log as any).event_id ? e.id === (log as any).event_id : e.event_name === log.event_name);
+          return (
+            <div key={log.id} className="py-3 flex justify-between items-start">
+              <div>
+                <h3 className="font-semibold">{event ? event.event_name : log.event_name}</h3>
+                <p className="text-sm text-muted-foreground">{formatValue(log)}</p>
+              </div>
+              <span className="text-sm text-muted-foreground">{format(new Date(log.created_at), 'MMM d, h:mm a')}</span>
             </div>
-            <span className="text-sm text-muted-foreground">
-              {format(new Date(log.created_at), 'MMM d, h:mm a')}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

@@ -28,7 +28,7 @@ export default function LogScreen() {
   };
 
   const formatValue = (log: Log) => {
-    const event = events.find(e => e.event_name === log.event_name);
+    const event = events.find(e => (log as any).event_id ? e.id === (log as any).event_id : e.event_name === log.event_name);
     if (!event) return log.value.toString();
     
     // Handle both string 'Count' and legacy values
@@ -52,7 +52,7 @@ export default function LogScreen() {
   const renderLog = ({ item }: { item: Log }) => (
     <View style={styles.logItem}>
       <View style={styles.logContent}>
-        <Text style={styles.eventName}>{item.event_name}</Text>
+        <Text style={styles.eventName}>{(events.find(e => (item as any).event_id ? e.id === (item as any).event_id : e.event_name === item.event_name) || { event_name: item.event_name }).event_name}</Text>
         <Text style={styles.value}>{formatValue(item)}</Text>
       </View>
       <Text style={styles.date}>{formatDate(item.created_at)}</Text>
