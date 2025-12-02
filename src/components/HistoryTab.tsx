@@ -10,10 +10,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { format, subDays, subMonths, startOfWeek, startOfMonth, startOfYear } from 'date-fns';
+import { format, subDays, subMonths, subWeeks, startOfWeek, startOfMonth, startOfYear, endOfWeek } from 'date-fns';
 import { toast } from 'sonner';
 import { chartPrefs, ChartType } from '@/lib/chartPrefs';
+import { CustomBarChart } from '@/components/charts/CustomBarChart';
+import { CustomLineChart } from '@/components/charts/CustomLineChart';
 
 type Timeframe = 'week' | 'month' | 'year';
 
@@ -93,27 +94,45 @@ export const HistoryTab = () => {
         });
       }
     } else if (timeframe === 'month') {
-      // Last 30 days
-      for (let i = 29; i >= 0; i--) {
-        const date = subDays(now, i);
-        const dateStr = format(date, 'yyyy-MM-dd');
-        const dayLogs = eventLogs.filter(log => 
-          format(new Date(log.created_at), 'yyyy-MM-dd') === dateStr
-        );
+      // Last 2 full months, grouped by weeks
+      const endDate = startOfMonth(now); // start of current month
+      const startDate = subMonths(endDate, 2); // start of month two months ago
+
+      // find first Monday on/after startDate
+      let cursor = startOfWeek(startDate, { weekStartsOn: 1 });
+      if (cursor < startDate) {
+        cursor = subDays(cursor, -7); // move to next Monday
+      }
+
+      const weekStarts: Date[] = [];
+      while (cursor < endDate) {
+        weekStarts.push(cursor);
+        cursor = subWeeks(cursor, -1); // move forward one week
+      }
+
+      for (const weekStart of weekStarts) {
+        const weekEnd = endOfWeek(weekStart, { weekStartsOn: 1 });
+        
+        const weekLogs = eventLogs.filter(log => {
+          const logDate = new Date(log.created_at);
+          return logDate >= weekStart && logDate <= weekEnd;
+        });
         
         let value = 0;
         if (event.event_type === 'Count') {
-          value = dayLogs.length;
+          value = weekLogs.length;
         } else {
-          value = dayLogs.length > 0 
-            ? dayLogs.reduce((sum, log) => sum + log.value, 0) / dayLogs.length 
+          value = weekLogs.length > 0 
+            ? weekLogs.reduce((sum, log) => sum + log.value, 0) / weekLogs.length 
             : 0;
         }
         
-        dataPoints.push({
-          date: format(date, 'MMM d'),
-          value: Math.round(value * 10) / 10,
-        });
+        if (weekEnd >= startDate && weekStart < endDate) {
+          dataPoints.push({
+            date: format(weekStart, 'MMM d'),
+            value: Math.round(value * 10) / 10,
+          });
+        }
       }
     } else {
       // Last 12 months
@@ -216,25 +235,11 @@ export const HistoryTab = () => {
               </button>
             </div>
           </div>
-          <ResponsiveContainer width="100%" height={250}>
-            {chartTypes[selectedEventId] === 'bar' ? (
-              <BarChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" stroke="hsl(var(--foreground))" fontSize={12} />
-                <YAxis label={{ value: yAxisLabel, angle: -90, position: 'insideLeft' }} stroke="hsl(var(--foreground))" fontSize={12} />
-                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} />
-                <Bar dataKey="value" fill="hsl(var(--foreground))" />
-              </BarChart>
-            ) : (
-              <LineChart data={chartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" stroke="hsl(var(--foreground))" fontSize={12} />
-                <YAxis label={{ value: yAxisLabel, angle: -90, position: 'insideLeft' }} stroke="hsl(var(--foreground))" fontSize={12} />
-                <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '0.5rem' }} />
-                <Line type="monotone" dataKey="value" stroke="hsl(var(--foreground))" strokeWidth={2} dot={{ fill: 'hsl(var(--foreground))' }} />
-              </LineChart>
-            )}
-          </ResponsiveContainer>
+          {chartTypes[selectedEventId] === 'bar' ? (
+            <CustomBarChart data={chartData} yAxisLabel={yAxisLabel} />
+          ) : (
+            <CustomLineChart data={chartData} yAxisLabel={yAxisLabel} />
+          )}
         </Card>
       </div>
     </div>

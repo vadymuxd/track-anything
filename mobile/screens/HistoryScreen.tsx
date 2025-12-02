@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { eventRepo, Event } from '../lib/eventRepo';
 import { logRepo, Log } from '../lib/logRepo';
-import { LineChart, BarChart } from 'react-native-chart-kit';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
 import { MaterialIcons } from '@expo/vector-icons';
 import { chartPrefs, ChartType } from '../lib/chartPrefs';
+import { CustomBarChart } from '../components/charts/CustomBarChart';
+import { CustomLineChart } from '../components/charts/CustomLineChart';
 
 type Timeframe = 'week' | 'month' | 'year';
 type ChartType = 'line' | 'bar';
@@ -112,36 +113,45 @@ export default function HistoryScreen() {
         data.push(Math.round(value * 10) / 10);
       }
     } else if (timeframe === 'month') {
-      // Current month from day 1 to today
-      const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      // Last 2 full months, grouped by weeks
+      const endDate = new Date(now.getFullYear(), now.getMonth(), 1); // start of current month
+      const startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 2, 1); // start of month two months ago
+
+      // find first Monday on/after startDate
+      const startDay = startDate.getDay();
+      const daysToAdd = startDay === 0 ? 1 : (startDay === 1 ? 0 : 8 - startDay);
+      let cursor = new Date(startDate);
+      cursor.setDate(cursor.getDate() + daysToAdd);
+
       const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const monthName = monthNames[now.getMonth()];
-      
-      for (let day = 1; day <= daysInMonth; day++) {
-        const date = new Date(now.getFullYear(), now.getMonth(), day);
-        const dateStr = date.toISOString().split('T')[0];
-        const dayLogs = eventLogs.filter(log => 
-          log.created_at.split('T')[0] === dateStr
-        );
-        
+
+      while (cursor < endDate) {
+        const weekStart = new Date(cursor);
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekEnd.getDate() + 6);
+
+        const weekLogs = eventLogs.filter(log => {
+          const logDate = new Date(log.created_at);
+          return logDate >= weekStart && logDate <= weekEnd;
+        });
+
         let value = 0;
         if (String(event.event_type) === 'Count') {
-          value = dayLogs.length;
+          value = weekLogs.length;
         } else {
-          value = dayLogs.length > 0 
-            ? dayLogs.reduce((sum, log) => sum + log.value, 0) / dayLogs.length 
+          value = weekLogs.length > 0 
+            ? weekLogs.reduce((sum, log) => sum + log.value, 0) / weekLogs.length 
             : 0;
         }
-        
-        // Show only 6 labels evenly distributed
-        const interval = Math.floor(daysInMonth / 5);
-        if (day === 1 || day % interval === 0 || day === daysInMonth) {
-          labels.push(`${day} ${monthName}`);
-        } else {
-          labels.push('');
+
+        if (weekEnd >= startDate && weekStart < endDate) {
+          const monthName = monthNames[weekStart.getMonth()];
+          const day = weekStart.getDate();
+          labels.push(`${monthName} ${day}`);
+          data.push(Math.round(value * 10) / 10);
         }
-        data.push(Math.round(value * 10) / 10);
+
+        cursor.setDate(cursor.getDate() + 7);
       }
     } else {
       // Last 12 months
@@ -177,71 +187,12 @@ export default function HistoryScreen() {
   const { width: screenWidth } = useWindowDimensions();
   const chartWidth = screenWidth - 32; // Standard 16px padding on each side
   
-  // Dynamic bar width based on timeframe (relative width so gaps stay visible)
+  // Dynamic bar percentage based on timeframe
   const barPercentage = useMemo(() => {
-    if (timeframe === 'week') return 1.05; // 50% wider than 0.7
-    if (timeframe === 'month') return 0.3; // 50% wider than 0.2
+    if (timeframe === 'week') return 1.05;
+    if (timeframe === 'month') return 0.5;
     return 0.6; // year
   }, [timeframe]);
-  
-  const lineChartConfig = useMemo(() => ({
-    backgroundColor: '#ffffff',
-    backgroundGradientFrom: '#ffffff',
-    backgroundGradientTo: '#ffffff',
-    decimalPlaces: 1,
-    color: (opacity = 1) => `rgba(0, 0, 0, 1)`,
-    strokeWidth: 2,
-    fillShadowGradient: '#000',
-    fillShadowGradientOpacity: 1,
-    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-    style: {
-      borderRadius: 0,
-    },
-    propsForBackgroundLines: {
-      strokeWidth: 0,
-    },
-    propsForDots: {
-      r: '0',
-    },
-    formatYLabel: (value: string) => value === '0' ? '' : value,
-  }), []);
-
-  const barChartConfig = useMemo(() => ({
-    backgroundColor: '#ffffff',
-    backgroundGradientFrom: '#ffffff',
-    backgroundGradientTo: '#ffffff',
-    decimalPlaces: 1,
-    color: (opacity = 1) => `rgba(0, 0, 0, 1)`,
-    strokeWidth: 0,
-    fillShadowGradientFrom: '#000000',
-    fillShadowGradientFromOpacity: 1,
-    fillShadowGradientTo: '#000000',
-    fillShadowGradientToOpacity: 1,
-    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
-    // Remove outer radius so bars are crisp and align to baseline
-    style: {
-      borderRadius: 0,
-    },
-    propsForBackgroundLines: {
-      strokeWidth: 0,
-    },
-    barPercentage,
-    barRadius: 0,
-    formatYLabel: (value: string) => value === '0' ? '' : value,
-    formatTopBarValue: (value: any) => {
-      if (value === null || value === undefined || value === 0 || value === '0') {
-        return '';
-      }
-      return value.toString();
-    },
-    // Move the value labels slightly down so there is a visible gap
-    propsForLabels: {
-      dy: -5,
-    },
-    propsForVerticalLabels: {
-      dx: -10, // Move Y-axis labels closer to the chart
-    },
-  }), [barPercentage]);
 
   if (loading) {
     return (
@@ -313,44 +264,16 @@ export default function HistoryScreen() {
             </View>
             
             {isBarChart ? (
-              <View style={{ alignItems: 'center' }}>
-                <BarChart
-                  data={chartData}
-                  width={chartWidth + 20} // Add width to compensate for negative margin
-                  height={230}
-                  chartConfig={{
-                    ...barChartConfig,
-                    barPercentage: timeframe === 'month' ? 0.3 : barPercentage,
-                  }}
-                  style={[styles.barChart, { marginLeft: -20 }]} // Negative margin to pull chart left
-                  segments={4}
-                  yAxisLabel=""
-                  yAxisSuffix=""
-                  withInnerLines={false}
-                  fromZero
-                  showValuesOnTopOfBars
-                />
-              </View>
+              <CustomBarChart 
+                data={chartData} 
+                width={chartWidth}
+                barPercentage={barPercentage}
+              />
             ) : (
-              <View style={{ alignItems: 'center' }}>
-                <LineChart
-                  data={chartData}
-                  width={chartWidth + 20} // Add width to compensate for negative margin
-                  height={220}
-                  chartConfig={lineChartConfig}
-                  bezier
-                  style={[styles.chart, { marginLeft: -20 }]} // Negative margin to pull chart left
-                  yAxisLabel=""
-                  yAxisSuffix=""
-                  withInnerLines={false}
-                  withOuterLines={false}
-                  withVerticalLabels
-                  withHorizontalLabels
-                  fromZero
-                  withDots={false}
-                  withScrollableDot={false}
-                />
-              </View>
+              <CustomLineChart 
+                data={chartData} 
+                width={chartWidth}
+              />
             )}
           </View>
         );
@@ -425,14 +348,5 @@ const styles = StyleSheet.create({
     padding: 8,
     borderRadius: 6,
     backgroundColor: '#f0f0f0',
-  },
-  chart: {
-    marginVertical: 8,
-    borderRadius: 8,
-  },
-  barChart: {
-    marginVertical: 8,
-    borderRadius: 8,
-    paddingBottom: 0,
   },
 });
