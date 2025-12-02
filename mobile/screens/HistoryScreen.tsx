@@ -328,26 +328,7 @@ export default function HistoryScreen() {
         const chartData = { labels, datasets };
         const isBarChart = chartTypes[event.id] === 'bar';
         const chartColor = chartColors[event.id] || DEFAULT_COLORS[0];
-        
-        // Horizontal swipe gesture that doesn't interfere with vertical scrolling
-        const swipeGesture = Gesture.Pan()
-          .activeOffsetX([-10, 10]) // Activate after 10px horizontal movement
-          .failOffsetY([-10, 10])   // Fail if vertical movement exceeds 10px
-          .onEnd((e) => {
-            const threshold = 50; // minimum swipe distance
-            const isHorizontal = Math.abs(e.translationX) > Math.abs(e.translationY);
-            
-            if (isHorizontal) {
-              if (e.translationX > threshold) {
-                // Swipe right - go to previous period
-                setPeriodOffsets(prev => ({ ...prev, [event.id]: (prev[event.id] || 0) - 1 }));
-              } else if (e.translationX < -threshold && periodOffset < 0) {
-                // Swipe left - go to next period (but not future)
-                setPeriodOffsets(prev => ({ ...prev, [event.id]: (prev[event.id] || 0) + 1 }));
-              }
-            }
-          });
-        
+
         return (
           <View key={event.id} style={styles.chartCard}>
             <View style={styles.chartHeader}>
@@ -372,41 +353,39 @@ export default function HistoryScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-            
-            <GestureDetector gesture={swipeGesture}>
-              <View>
-                {isBarChart ? (
-                  <CustomBarChart 
-                    data={chartData} 
-                    width={chartWidth}
-                    barPercentage={barPercentage}
-                    color={chartColor}
-                  />
-                ) : (
-                  <CustomLineChart 
-                    data={chartData} 
-                    width={chartWidth}
-                    color={chartColor}
-                    notes={notes}
-                    eventId={event.id}
-                    onNotePress={handleNotePress}
-                    dateRanges={dateRanges}
-                  />
-                )}
-                {/* Show NoteHint if this event's note is selected */}
-                {hintNote && hintNote.event_id === event.id && hintPosition && (
-                  <NoteHint
-                    note={hintNote}
-                    x={hintPosition.x}
-                    y={hintPosition.y}
-                    onClose={() => {
-                      setHintNote(null);
-                      setHintPosition(null);
-                    }}
-                  />
-                )}
-              </View>
-            </GestureDetector>
+
+            <View>
+              {isBarChart ? (
+                <CustomBarChart 
+                  data={chartData} 
+                  width={chartWidth}
+                  barPercentage={barPercentage}
+                  color={chartColor}
+                />
+              ) : (
+                <CustomLineChart 
+                  data={chartData} 
+                  width={chartWidth}
+                  color={chartColor}
+                  notes={notes}
+                  eventId={event.id}
+                  onNotePress={handleNotePress}
+                  dateRanges={dateRanges}
+                />
+              )}
+              {/* Show NoteHint if this event's note is selected */}
+              {hintNote && hintNote.event_id === event.id && hintPosition && (
+                <NoteHint
+                  note={hintNote}
+                  x={hintPosition.x}
+                  y={hintPosition.y}
+                  onClose={() => {
+                    setHintNote(null);
+                    setHintPosition(null);
+                  }}
+                />
+              )}
+            </View>
           </View>
         );
       })}
