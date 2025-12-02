@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, TextInput, TouchableOpacity, StyleSheet, ScrollView, Animated } from 'react-native';
 import { Event, eventRepo } from '../lib/eventRepo';
+import { colorPrefs, DEFAULT_COLORS } from '../lib/colorPrefs';
 
 interface EventDialogProps {
   visible: boolean;
@@ -15,6 +16,7 @@ export const EventDialog = ({ visible, onClose, event, onSave, onDelete }: Event
   const [eventType, setEventType] = useState<'Count' | 'Scale'>('Count');
   const [scaleLabel, setScaleLabel] = useState('');
   const [scaleMax, setScaleMax] = useState('5');
+  const [eventColor, setEventColor] = useState<string>(DEFAULT_COLORS[0]);
   const [saving, setSaving] = useState(false);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
   const dialogTranslateY = useRef(new Animated.Value(300)).current;
@@ -59,11 +61,22 @@ export const EventDialog = ({ visible, onClose, event, onSave, onDelete }: Event
       setEventType(event.event_type as 'Count' | 'Scale');
       setScaleLabel(event.scale_label || '');
       setScaleMax(event.scale_max?.toString() || '5');
+      // Load existing color preference for this event
+      colorPrefs.get(event.id).then((color) => {
+        if (color) {
+          setEventColor(color);
+        } else {
+          setEventColor(DEFAULT_COLORS[0]);
+        }
+      }).catch(() => {
+        setEventColor(DEFAULT_COLORS[0]);
+      });
     } else {
       setEventName('');
       setEventType('Count');
       setScaleLabel('');
       setScaleMax('5');
+      setEventColor(DEFAULT_COLORS[0]);
     }
   }, [event, visible]);
 
@@ -82,13 +95,19 @@ export const EventDialog = ({ visible, onClose, event, onSave, onDelete }: Event
           scale_label: eventType === 'Scale' ? scaleLabel : null,
           scale_max: eventType === 'Scale' ? parseInt(scaleMax) : null,
         });
+        await colorPrefs.set(event.id, eventColor);
       } else {
-        await eventRepo.create({
+        const created = await eventRepo.create({
           event_name: eventName,
           event_type: eventType,
           scale_label: eventType === 'Scale' ? scaleLabel : null,
           scale_max: eventType === 'Scale' ? parseInt(scaleMax) : null,
         });
+        if (created && 'id' in created) {
+          // If repo returns the new event with id, persist color for it
+          // @ts-ignore
+          await colorPrefs.set(created.id, eventColor);
+        }
       }
       
       onSave();
@@ -173,6 +192,26 @@ export const EventDialog = ({ visible, onClose, event, onSave, onDelete }: Event
                 </View>
               </>
             )}
+
+            <View style={styles.field}>
+              <Text style={styles.label}>Chart Color</Text>
+              <View style={styles.colorRow}>
+                {DEFAULT_COLORS.map((color) => (
+                  <TouchableOpacity
+                    key={color}
+                    style={[
+                      styles.colorCircle,
+                      { backgroundColor: color },
+                      eventColor === color && styles.colorCircleSelected,
+                    ]}
+                    onPress={() => setEventColor(color)}
+                    activeOpacity={0.7}
+                  >
+                    {eventColor === color && <Text style={styles.colorCheck}>✓</Text>}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
 
             <View style={styles.buttons}>
               <TouchableOpacity style={styles.saveButton} onPress={handleSave} disabled={saving}>
@@ -300,5 +339,28 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#dc3545',
+  },
+  colorRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  colorCircle: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    marginRight: 8,
+    marginBottom: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  colorCircleSelected: {
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  colorCheck: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
   },
 });
