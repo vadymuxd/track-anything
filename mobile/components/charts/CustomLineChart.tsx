@@ -65,24 +65,72 @@ export const CustomLineChart = ({
       return { x, y };
     });
 
-    // Build a smooth bezier path similar to chart-kit bezier line
+    // Build a smooth monotone cubic bezier path (similar to d3.curveMonotoneX)
     let d = '';
     if (points.length === 1) {
       d = `M ${points[0].x} ${points[0].y}`;
     } else {
-      // Stronger bezier curvature by pulling control points further from the midpoint
-      const tension = 0.6; // 0-1, higher = more curve
-      points.forEach((p, i) => {
-        if (i === 0) {
-          d += `M ${p.x} ${p.y}`;
+      const n = points.length;
+      const dx: number[] = [];
+      const dy: number[] = [];
+      const m: number[] = []; // segment slopes
+
+      for (let i = 0; i < n - 1; i++) {
+        const p0 = points[i];
+        const p1 = points[i + 1];
+        const dxVal = p1.x - p0.x || 1;
+        const dyVal = p1.y - p0.y;
+        dx.push(dxVal);
+        dy.push(dyVal);
+        m.push(dyVal / dxVal);
+      }
+
+      const t: number[] = new Array(n);
+
+      // endpoint tangents
+      t[0] = m[0];
+      t[n - 1] = m[n - 2];
+
+      // interior tangents as average of slopes, then clamped (Fritsch–Carlson)
+      for (let i = 1; i < n - 1; i++) {
+        if (m[i - 1] === 0 || m[i] === 0 || m[i - 1] * m[i] < 0) {
+          t[i] = 0;
         } else {
-          const prev = points[i - 1];
-          const dx = p.x - prev.x;
-          const cp1x = prev.x + dx * (1 - tension);
-          const cp2x = p.x - dx * (1 - tension);
-          d += ` C ${cp1x} ${prev.y}, ${cp2x} ${p.y}, ${p.x} ${p.y}`;
+          t[i] = (m[i - 1] + m[i]) / 2;
         }
-      });
+      }
+
+      for (let i = 0; i < n - 1; i++) {
+        if (m[i] === 0) {
+          t[i] = 0;
+          t[i + 1] = 0;
+          continue;
+        }
+
+        const a = t[i] / m[i];
+        const b = t[i + 1] / m[i];
+        const h = Math.hypot(a, b);
+        if (h > 3) {
+          const scale = 3 / h;
+          t[i] = a * scale * m[i];
+          t[i + 1] = b * scale * m[i];
+        }
+      }
+
+      d = `M ${points[0].x} ${points[0].y}`;
+
+      for (let i = 0; i < n - 1; i++) {
+        const p0 = points[i];
+        const p1 = points[i + 1];
+        const dxVal = dx[i];
+
+        const cp1x = p0.x + dxVal / 3;
+        const cp1y = p0.y + (t[i] * dxVal) / 3;
+        const cp2x = p1.x - dxVal / 3;
+        const cp2y = p1.y - (t[i + 1] * dxVal) / 3;
+
+        d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p1.x} ${p1.y}`;
+      }
     }
 
     // Closed path for area under the curve
