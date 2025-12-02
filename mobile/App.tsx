@@ -197,5 +197,7 @@ const appStyles = StyleSheet.create({
     fontSize: 32,
     color: '#fff',
     fontWeight: '300',
+    lineHeight: 32,
+    marginTop: -2,
   },
 });
