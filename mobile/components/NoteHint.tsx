@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useMemo } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Note } from '../lib/noteRepo';
 
@@ -11,13 +11,36 @@ interface NoteHintProps {
 }
 
 export const NoteHint: React.FC<NoteHintProps> = ({ note, x, y, onClose }) => {
+  const { width: screenWidth } = useWindowDimensions();
+  
+  // Calculate safe horizontal position to keep hint fully visible
+  const safeLeft = useMemo(() => {
+    const CARD_WIDTH = 140; // maxWidth from styles
+    const EDGE_PADDING = 16; // minimum distance from screen edge
+    
+    // Try to center the card on the point
+    let left = x - CARD_WIDTH / 2;
+    
+    // Check left boundary
+    if (left < EDGE_PADDING) {
+      left = EDGE_PADDING;
+    }
+    
+    // Check right boundary
+    if (left + CARD_WIDTH > screenWidth - EDGE_PADDING) {
+      left = screenWidth - EDGE_PADDING - CARD_WIDTH;
+    }
+    
+    return left;
+  }, [x, screenWidth]);
+  
   return (
     <View pointerEvents="box-none" style={styles.container}>
       <View
         style={[
           styles.card,
           {
-            left: x - 55, // center horizontally assuming ~110 width
+            left: safeLeft,
             top: y - 60,  // place above the circle
           },
         ]}
