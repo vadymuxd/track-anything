@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { View } from 'react-native';
-import Svg, { Path, Line, Text as SvgText, Defs, LinearGradient, Stop } from 'react-native-svg';
+import { View, TouchableOpacity } from 'react-native';
+import Svg, { Path, Line, Text as SvgText, Defs, LinearGradient, Stop, Circle } from 'react-native-svg';
+import { Note } from '../../lib/noteRepo';
 
 interface CustomLineChartProps {
   data: {
@@ -10,13 +11,21 @@ interface CustomLineChartProps {
   width: number;
   height?: number;
   color?: string;
+  notes?: Note[];
+  eventId?: string;
+  onNotePress?: (note: Note) => void;
+  dateRanges?: Array<{ start: Date; end: Date }>; // Optional: date range for each data point
 }
 
 export const CustomLineChart = ({ 
   data, 
   width, 
   height = 220,
-  color = '#000'
+  color = '#000',
+  notes = [],
+  eventId = '',
+  onNotePress,
+  dateRanges = []
 }: CustomLineChartProps) => {
   // Internal padding so we fully control spacing between Y-axis and line
   const paddingLeft = 32; // controls gap between Y-axis and first point
@@ -34,14 +43,14 @@ export const CustomLineChart = ({
 
   const gradientId = `lineFill-${color.replace('#', '')}`;
 
-  const { path, fillPath, yTicks, minVal, maxVal } = useMemo(() => {
+  const { path, fillPath, yTicks, minVal, maxVal, notePositions } = useMemo(() => {
     const values = data.datasets[0]?.data ?? [];
 
     const drawableWidth = width - paddingLeft - paddingRight;
     const drawableHeight = height - paddingTop - paddingBottom;
 
     if (!values.length || drawableWidth <= 0 || drawableHeight <= 0) {
-      return { path: '', fillPath: '', yTicks: [] as number[], minVal: 0, maxVal: 0 };
+      return { path: '', fillPath: '', yTicks: [] as number[], minVal: 0, maxVal: 0, notePositions: [] as Array<{ x: number; y: number; note: Note }> };
     }
 
     const minVal = Math.min(0, ...values);
@@ -90,8 +99,32 @@ export const CustomLineChart = ({
       tickValues.push(minVal + (range * i) / ticks);
     }
 
-    return { path: d, fillPath: areaPath, yTicks: tickValues, minVal, maxVal };
-  }, [data, width, height, paddingLeft, paddingRight, paddingTop, paddingBottom]);
+    // Calculate note positions on the line
+    const notePositions: Array<{ x: number; y: number; note: Note }> = [];
+    if (notes && notes.length > 0 && eventId && dateRanges && dateRanges.length === points.length) {
+      const eventNotes = notes.filter(n => n.event_id === eventId);
+
+      eventNotes.forEach(note => {
+        const noteDate = new Date(note.start_date); // Use start_date for X position
+
+        // Find which data point range this note belongs to
+        const noteIndex = dateRanges.findIndex(range => 
+          noteDate >= range.start && noteDate <= range.end
+        );
+
+        // Only show notes that fall inside the visible period
+        if (noteIndex >= 0 && noteIndex < points.length) {
+          notePositions.push({
+            x: points[noteIndex].x,
+            y: points[noteIndex].y,
+            note
+          });
+        }
+      });
+    }
+
+    return { path: d, fillPath: areaPath, yTicks: tickValues, minVal, maxVal, notePositions };
+  }, [data, width, height, paddingLeft, paddingRight, paddingTop, paddingBottom, notes, eventId, dateRanges]);
 
   return (
     <View style={{ alignItems: 'center' }}>
@@ -197,6 +230,29 @@ export const CustomLineChart = ({
             </SvgText>
           );
         })}
+
+        {/* Note markers - render as circles on the line */}
+        {notePositions.map((notePos, index) => (
+          <React.Fragment key={`note-${index}`}>
+            {/* Visible marker */}
+            <Circle
+              cx={notePos.x}
+              cy={notePos.y}
+              r={6}
+              fill={color}
+              stroke="#fff"
+              strokeWidth={2}
+            />
+            {/* Larger invisible hit area for easier tapping - rendered on top */}
+            <Circle
+              cx={notePos.x}
+              cy={notePos.y}
+              r={22}
+              fill="rgba(0,0,0,0.01)"
+              onPress={() => onNotePress && onNotePress(notePos.note)}
+            />
+          </React.Fragment>
+        ))}
       </Svg>
     </View>
   );

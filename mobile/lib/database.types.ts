@@ -58,6 +58,35 @@ export interface Database {
           value?: number
         }
       }
+      notes: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          title: string
+          description: string | null
+          event_id: string
+          start_date: string
+        }
+        Insert: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          title: string
+          description?: string | null
+          event_id: string
+          start_date?: string
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          title?: string
+          description?: string | null
+          event_id?: string
+          start_date?: string
+        }
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,17 +1,24 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native';
 import { eventRepo, Event } from '../lib/eventRepo';
 import { logRepo } from '../lib/logRepo';
+import { noteRepo, Note } from '../lib/noteRepo';
 import { EventDialog } from '../components/EventDialog';
+import { NoteDialog } from '../components/NoteDialog';
+import { EventComponent } from '../components/EventComponent';
+import { NoteComponent } from '../components/NoteComponent';
 import { useFocusEffect } from '@react-navigation/native';
 import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
 import { MaterialIcons } from '@expo/vector-icons';
 
 export default function EventsScreen({ route, navigation }: any) {
   const [events, setEvents] = useState<Event[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
+  const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [logCounts, setLogCounts] = useState<Record<string, number>>({});
 
   const loadEvents = async () => {
@@ -26,6 +33,10 @@ export default function EventsScreen({ route, navigation }: any) {
         counts[event.id] = logsForEvent.length;
       }
       setLogCounts(counts);
+
+      // Load notes
+      const allNotes = await noteRepo.list();
+      setNotes(allNotes);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to load events');
     } finally {
@@ -94,22 +105,58 @@ export default function EventsScreen({ route, navigation }: any) {
     setIsDialogOpen(false);
   };
 
+  const handleNoteSave = () => {
+    loadEvents();
+    setEditingNote(null);
+    setIsNoteDialogOpen(false);
+  };
+
+  const handleNoteEdit = (note: Note) => {
+    setEditingNote(note);
+    setIsNoteDialogOpen(true);
+  };
+
+  const handleNoteDelete = async (id: string) => {
+    Alert.alert(
+      'Delete Note',
+      'Are you sure you want to delete this note?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await noteRepo.delete(id);
+              loadEvents();
+            } catch (error: any) {
+              Alert.alert('Error', error.message || 'Failed to delete note');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const getEventName = (eventId: string): string => {
+    const event = events.find(e => e.id === eventId);
+    return event?.event_name || 'Unknown Event';
+  };
+
   const renderEvent = ({ item }: { item: Event }) => (
-    <View style={styles.eventCard}>
-      <View style={styles.eventInfo}>
-        <Text style={styles.eventName}>{item.event_name}</Text>
-        <Text style={styles.eventMeta}>
-          {logCounts[item.id] || 0} entries • {String(item.event_type)}
-          {String(item.event_type) === 'Scale' && ` (1-${item.scale_max} ${item.scale_label})`}
-        </Text>
-      </View>
-      <TouchableOpacity 
-        onPress={() => handleEdit(item)}
-        style={styles.editButton}
-      >
-        <MaterialIcons name="edit" size={20} color="#fff" />
-      </TouchableOpacity>
-    </View>
+    <EventComponent 
+      event={item}
+      logCount={logCounts[item.id] || 0}
+      onEdit={() => handleEdit(item)}
+    />
+  );
+
+  const renderNote = ({ item }: { item: Note }) => (
+    <NoteComponent 
+      note={item}
+      eventName={getEventName(item.event_id)}
+      onEdit={() => handleNoteEdit(item)}
+    />
   );
 
   if (loading) {
@@ -121,7 +168,7 @@ export default function EventsScreen({ route, navigation }: any) {
   }
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container}>
       {/* Tracking Events Section */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
@@ -159,14 +206,25 @@ export default function EventsScreen({ route, navigation }: any) {
           <TouchableOpacity
             style={styles.addButton}
             onPress={() => {
-              // TODO: Will be implemented later
+              setEditingNote(null);
+              setIsNoteDialogOpen(true);
             }}
           >
             <Text style={styles.addButtonText}>+</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.emptyText}>Coming soon...</Text>
+        {notes.length === 0 ? (
+          <Text style={styles.emptyText}>No notes yet. Add your first milestone note.</Text>
+        ) : (
+          <View>
+            {notes.map((item) => (
+              <View key={item.id}>
+                {renderNote({ item })}
+              </View>
+            ))}
+          </View>
+        )}
       </View>
 
       <EventDialog
@@ -179,7 +237,18 @@ export default function EventsScreen({ route, navigation }: any) {
         onSave={handleSave}
         onDelete={editingEvent ? () => handleDelete(editingEvent.id) : undefined}
       />
-    </View>
+
+      <NoteDialog
+        visible={isNoteDialogOpen}
+        onClose={() => {
+          setIsNoteDialogOpen(false);
+          setEditingNote(null);
+        }}
+        note={editingNote}
+        onSave={handleNoteSave}
+        onDelete={editingNote ? () => handleNoteDelete(editingNote.id) : undefined}
+      />
+    </ScrollView>
   );
 }
 
@@ -223,31 +292,6 @@ const styles = StyleSheet.create({
   loadingText: {
     textAlign: 'center',
     color: '#666',
-  },
-  eventCard: {
-    marginBottom: 12,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    backgroundColor: '#000',
-    borderRadius: 8,
-  },
-  eventInfo: {
-    flex: 1,
-  },
-  eventName: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
-    color: '#fff',
-  },
-  eventMeta: {
-    fontSize: 14,
-    color: '#ccc',
-  },
-  editButton: {
-    padding: 8,
   },
   emptyText: {
     textAlign: 'center',

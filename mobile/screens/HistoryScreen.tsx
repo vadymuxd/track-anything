@@ -2,12 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, useWindowDimensions } from 'react-native';
 import { eventRepo, Event } from '../lib/eventRepo';
 import { logRepo, Log } from '../lib/logRepo';
+import { noteRepo, Note } from '../lib/noteRepo';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
 import { MaterialIcons } from '@expo/vector-icons';
 import { chartPrefs, ChartType } from '../lib/chartPrefs';
 import { CustomBarChart } from '../components/charts/CustomBarChart';
 import { CustomLineChart } from '../components/charts/CustomLineChart';
+import { NoteDialog } from '../components/NoteDialog';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { TimePeriodNavigator } from '../components/TimePeriodNavigator';
 import { colorPrefs, DEFAULT_COLORS } from '../lib/colorPrefs';
@@ -18,21 +20,26 @@ type ChartType = 'line' | 'bar';
 export default function HistoryScreen() {
   const [events, setEvents] = useState<Event[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [timeframe, setTimeframe] = useState<Timeframe>('week');
   const [periodOffsets, setPeriodOffsets] = useState<Record<string, number>>({}); // Track offset per event
   const [loading, setLoading] = useState(true);
   const [chartTypes, setChartTypes] = useState<Record<string, ChartType>>({});
   const [chartColors, setChartColors] = useState<Record<string, string>>({});
+  const [selectedNote, setSelectedNote] = useState<Note | null>(null);
+  const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
   const navigation = useNavigation();
 
   const loadData = async () => {
     try {
-      const [allEvents, allLogs] = await Promise.all([
+      const [allEvents, allLogs, allNotes] = await Promise.all([
         eventRepo.list(),
-        logRepo.list()
+        logRepo.list(),
+        noteRepo.list()
       ]);
       setEvents(allEvents);
       setLogs(allLogs);
+      setNotes(allNotes);
       
       // Initialize chart types for all events (use event.id as key)
       const initialChartTypes: Record<string, ChartType> = {};
@@ -90,7 +97,14 @@ export default function HistoryScreen() {
     setPeriodOffsets({});
   }, [timeframe]);
 
-  const getChartDataForEvent = (eventId: string, offset: number = 0) => {
+  const getChartDataForEvent = (
+    eventId: string,
+    offset: number = 0
+  ): {
+    labels: string[];
+    datasets: [{ data: number[] }];
+    dateRanges: { start: Date; end: Date }[];
+  } => {
     const event = events.find(e => e.id === eventId);
     const eventLogs = logs.filter(log => {
       if ((log as any).event_id) return (log as any).event_id === eventId;
@@ -99,8 +113,9 @@ export default function HistoryScreen() {
     if (!event) return { labels: [], datasets: [{ data: [0] }] };
 
     const now = new Date();
-    let labels: string[] = [];
-    let data: number[] = [];
+    const labels: string[] = [];
+    const data: number[] = [];
+    const dateRanges: { start: Date; end: Date }[] = [];
 
     if (timeframe === 'week') {
       // Last 7 days (Monday to Sunday) with offset
@@ -114,6 +129,11 @@ export default function HistoryScreen() {
       for (let i = 0; i < 7; i++) {
         const date = new Date(today);
         date.setDate(date.getDate() - daysFromMonday + i);
+        const startOfDay = new Date(date);
+        startOfDay.setHours(0, 0, 0, 0);
+        const endOfDay = new Date(date);
+        endOfDay.setHours(23, 59, 59, 999);
+
         const dateStr = date.toISOString().split('T')[0];
         const dayLogs = eventLogs.filter(log => 
           log.created_at.split('T')[0] === dateStr
@@ -130,6 +150,7 @@ export default function HistoryScreen() {
         
         labels.push(dayNames[i]);
         data.push(Math.round(value * 10) / 10);
+        dateRanges.push({ start: startOfDay, end: endOfDay });
       }
     } else if (timeframe === 'month') {
       // Last 2 full months, grouped by weeks with offset
@@ -146,8 +167,10 @@ export default function HistoryScreen() {
 
       while (cursor < endDate) {
         const weekStart = new Date(cursor);
+        weekStart.setHours(0, 0, 0, 0);
         const weekEnd = new Date(weekStart);
         weekEnd.setDate(weekEnd.getDate() + 6);
+        weekEnd.setHours(23, 59, 59, 999);
 
         const weekLogs = eventLogs.filter(log => {
           const logDate = new Date(log.created_at);
@@ -168,6 +191,7 @@ export default function HistoryScreen() {
           const day = weekStart.getDate();
           labels.push(`${monthName} ${day}`);
           data.push(Math.round(value * 10) / 10);
+          dateRanges.push({ start: new Date(weekStart), end: new Date(weekEnd) });
         }
 
         cursor.setDate(cursor.getDate() + 7);
@@ -177,6 +201,10 @@ export default function HistoryScreen() {
       for (let i = 11; i >= 0; i--) {
         const date = new Date(now);
         date.setMonth(date.getMonth() - i + offset * 12); // Apply offset in years
+        const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
+        const startOfNextMonth = new Date(date.getFullYear(), date.getMonth() + 1, 1, 0, 0, 0, 0);
+        const endOfMonth = new Date(startOfNextMonth.getTime() - 1);
+
         const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         const monthLogs = eventLogs.filter(log => 
           log.created_at.substring(0, 7) === monthStr
@@ -194,12 +222,14 @@ export default function HistoryScreen() {
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         labels.push(monthNames[date.getMonth()]);
         data.push(Math.round(value * 10) / 10);
+        dateRanges.push({ start: startOfMonth, end: endOfMonth });
       }
     }
 
     return {
       labels,
-      datasets: [{ data: data.length > 0 ? data : [0] }]
+      datasets: [{ data: data.length > 0 ? data : [0] }],
+      dateRanges
     };
   };
 
@@ -212,6 +242,31 @@ export default function HistoryScreen() {
     if (timeframe === 'month') return 0.5;
     return 0.6; // year
   }, [timeframe]);
+
+  const handleNotePress = (note: Note) => {
+    setSelectedNote(note);
+    setIsNoteDialogOpen(true);
+  };
+
+  const handleNoteDialogClose = () => {
+    setIsNoteDialogOpen(false);
+    setSelectedNote(null);
+  };
+
+  const handleNoteSave = () => {
+    loadData();
+    handleNoteDialogClose();
+  };
+
+  const handleNoteDelete = async (id: string) => {
+    try {
+      await noteRepo.delete(id);
+      loadData();
+      handleNoteDialogClose();
+    } catch (error) {
+      console.error('Error deleting note:', error);
+    }
+  };
 
   if (loading) {
     return (
@@ -265,7 +320,8 @@ export default function HistoryScreen() {
       {/* Charts for all events */}
       {events.map((event) => {
         const periodOffset = periodOffsets[event.id] || 0;
-        const chartData = getChartDataForEvent(event.id, periodOffset);
+        const { labels, datasets, dateRanges } = getChartDataForEvent(event.id, periodOffset);
+        const chartData = { labels, datasets };
         const isBarChart = chartTypes[event.id] === 'bar';
         const chartColor = chartColors[event.id] || DEFAULT_COLORS[0];
         
@@ -321,6 +377,10 @@ export default function HistoryScreen() {
                     data={chartData} 
                     width={chartWidth}
                     color={chartColor}
+                    notes={notes}
+                    eventId={event.id}
+                    onNotePress={handleNotePress}
+                    dateRanges={dateRanges}
                   />
                 )}
               </View>
@@ -329,6 +389,14 @@ export default function HistoryScreen() {
         );
       })}
     </ScrollView>
+
+    <NoteDialog
+      visible={isNoteDialogOpen}
+      onClose={handleNoteDialogClose}
+      note={selectedNote}
+      onSave={handleNoteSave}
+      onDelete={selectedNote ? () => handleNoteDelete(selectedNote.id) : undefined}
+    />
     </GestureHandlerRootView>
   );
 }
