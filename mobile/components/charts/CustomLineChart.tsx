@@ -123,7 +123,7 @@ export const CustomLineChart = ({
           const label = Math.abs(val) < 1e-6 ? '' : val.toFixed(1);
 
           return (
-            <>
+            <React.Fragment key={`ytick-${i}`}>
               <Line
                 key={`grid-${i}`}
                 x1={paddingLeft}
@@ -145,7 +145,7 @@ export const CustomLineChart = ({
                   {label}
                 </SvgText>
               ) : null}
-            </>
+            </React.Fragment>
           );
         })}
 

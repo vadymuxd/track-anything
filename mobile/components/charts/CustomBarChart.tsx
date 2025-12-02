@@ -97,7 +97,7 @@ export const CustomBarChart = ({
           const label = Math.abs(val) < 1e-6 ? '' : val.toFixed(1);
 
           return (
-            <>
+            <React.Fragment key={`ytick-${i}`}>
               <Line
                 key={`grid-${i}`}
                 x1={paddingLeft}
@@ -119,13 +119,13 @@ export const CustomBarChart = ({
                   {label}
                 </SvgText>
               ) : null}
-            </>
+            </React.Fragment>
           );
         })}
 
         {/* Bars */}
         {bars.map((bar, idx) => (
-          <>
+          <React.Fragment key={`bar-fragment-${idx}`}>
             <Rect
               key={`bar-${idx}`}
               x={bar.x}
@@ -147,7 +147,7 @@ export const CustomBarChart = ({
                 {bar.v.toFixed(1)}
               </SvgText>
             ) : null}
-          </>
+          </React.Fragment>
         ))}
 
         {/* X labels */}

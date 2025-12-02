@@ -8,6 +8,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { chartPrefs, ChartType } from '../lib/chartPrefs';
 import { CustomBarChart } from '../components/charts/CustomBarChart';
 import { CustomLineChart } from '../components/charts/CustomLineChart';
+import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
+import { TimePeriodNavigator } from '../components/TimePeriodNavigator';
 
 type Timeframe = 'week' | 'month' | 'year';
 type ChartType = 'line' | 'bar';
@@ -16,6 +18,7 @@ export default function HistoryScreen() {
   const [events, setEvents] = useState<Event[]>([]);
   const [logs, setLogs] = useState<Log[]>([]);
   const [timeframe, setTimeframe] = useState<Timeframe>('week');
+  const [periodOffsets, setPeriodOffsets] = useState<Record<string, number>>({}); // Track offset per event
   const [loading, setLoading] = useState(true);
   const [chartTypes, setChartTypes] = useState<Record<string, ChartType>>({});
   const navigation = useNavigation();
@@ -72,7 +75,12 @@ export default function HistoryScreen() {
     chartPrefs.set(eventId, next).catch(() => {});
   };
 
-  const getChartDataForEvent = (eventId: string) => {
+  // Reset period offsets when timeframe changes
+  useEffect(() => {
+    setPeriodOffsets({});
+  }, [timeframe]);
+
+  const getChartDataForEvent = (eventId: string, offset: number = 0) => {
     const event = events.find(e => e.id === eventId);
     const eventLogs = logs.filter(log => {
       if ((log as any).event_id) return (log as any).event_id === eventId;
@@ -85,15 +93,16 @@ export default function HistoryScreen() {
     let data: number[] = [];
 
     if (timeframe === 'week') {
-      // Last 7 days (Monday to Sunday)
+      // Last 7 days (Monday to Sunday) with offset
       const today = new Date(now);
+      today.setDate(today.getDate() + offset * 7); // Apply offset
       const currentDay = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
       const daysFromMonday = currentDay === 0 ? 6 : currentDay - 1;
       
       const dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
       
       for (let i = 0; i < 7; i++) {
-        const date = new Date(now);
+        const date = new Date(today);
         date.setDate(date.getDate() - daysFromMonday + i);
         const dateStr = date.toISOString().split('T')[0];
         const dayLogs = eventLogs.filter(log => 
@@ -113,8 +122,8 @@ export default function HistoryScreen() {
         data.push(Math.round(value * 10) / 10);
       }
     } else if (timeframe === 'month') {
-      // Last 2 full months, grouped by weeks
-      const endDate = new Date(now.getFullYear(), now.getMonth(), 1); // start of current month
+      // Last 2 full months, grouped by weeks with offset
+      const endDate = new Date(now.getFullYear(), now.getMonth() + offset, 1); // Apply offset to months
       const startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 2, 1); // start of month two months ago
 
       // find first Monday on/after startDate
@@ -154,10 +163,10 @@ export default function HistoryScreen() {
         cursor.setDate(cursor.getDate() + 7);
       }
     } else {
-      // Last 12 months
+      // Last 12 months with offset
       for (let i = 11; i >= 0; i--) {
         const date = new Date(now);
-        date.setMonth(date.getMonth() - i);
+        date.setMonth(date.getMonth() - i + offset * 12); // Apply offset in years
         const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
         const monthLogs = eventLogs.filter(log => 
           log.created_at.substring(0, 7) === monthStr
@@ -213,9 +222,10 @@ export default function HistoryScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-      {/* Timeframe Tabs */}
-      <View style={styles.tabsContainer}>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ScrollView style={styles.container} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Timeframe Tabs */}
+        <View style={styles.tabsContainer}>
         <TouchableOpacity
           style={[styles.tab, timeframe === 'week' && styles.tabActive]}
           onPress={() => setTimeframe('week')}
@@ -244,41 +254,69 @@ export default function HistoryScreen() {
 
       {/* Charts for all events */}
       {events.map((event) => {
-        const chartData = getChartDataForEvent(event.id);
+        const periodOffset = periodOffsets[event.id] || 0;
+        const chartData = getChartDataForEvent(event.id, periodOffset);
         const isBarChart = chartTypes[event.id] === 'bar';
+        
+        // Swipe gesture to navigate between periods
+        const swipeGesture = Gesture.Pan()
+          .onEnd((e) => {
+            const threshold = 50; // minimum swipe distance
+            if (e.translationX > threshold) {
+              // Swipe right - go to previous period
+              setPeriodOffsets(prev => ({ ...prev, [event.id]: (prev[event.id] || 0) - 1 }));
+            } else if (e.translationX < -threshold && periodOffset < 0) {
+              // Swipe left - go to next period (but not future)
+              setPeriodOffsets(prev => ({ ...prev, [event.id]: (prev[event.id] || 0) + 1 }));
+            }
+          });
         
         return (
           <View key={event.id} style={styles.chartCard}>
             <View style={styles.chartHeader}>
               <Text style={styles.chartTitle}>{event.event_name}</Text>
-              <TouchableOpacity 
-                style={styles.toggleButton}
-                onPress={() => toggleChartType(event.id)}
-              >
-                <MaterialIcons 
-                  name={isBarChart ? "show-chart" : "bar-chart"} 
-                  size={20} 
-                  color="#333" 
+              <View style={styles.chartControls}>
+                <TimePeriodNavigator
+                  timeframe={timeframe}
+                  offset={periodOffset}
+                  onOffsetChange={(newOffset) => 
+                    setPeriodOffsets(prev => ({ ...prev, [event.id]: newOffset }))
+                  }
                 />
-              </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.toggleButton}
+                  onPress={() => toggleChartType(event.id)}
+                >
+                  <MaterialIcons 
+                    name={isBarChart ? "show-chart" : "bar-chart"} 
+                    size={20} 
+                    color="#333" 
+                  />
+                </TouchableOpacity>
+              </View>
             </View>
             
-            {isBarChart ? (
-              <CustomBarChart 
-                data={chartData} 
-                width={chartWidth}
-                barPercentage={barPercentage}
-              />
-            ) : (
-              <CustomLineChart 
-                data={chartData} 
-                width={chartWidth}
-              />
-            )}
+            <GestureDetector gesture={swipeGesture}>
+              <View>
+                {isBarChart ? (
+                  <CustomBarChart 
+                    data={chartData} 
+                    width={chartWidth}
+                    barPercentage={barPercentage}
+                  />
+                ) : (
+                  <CustomLineChart 
+                    data={chartData} 
+                    width={chartWidth}
+                  />
+                )}
+              </View>
+            </GestureDetector>
           </View>
         );
       })}
     </ScrollView>
+    </GestureHandlerRootView>
   );
 }
 
@@ -343,6 +381,13 @@ const styles = StyleSheet.create({
   chartTitle: {
     fontSize: 14,
     fontWeight: '600',
+    flex: 1,
+  },
+  chartControls: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    flexShrink: 0,
   },
   toggleButton: {
     padding: 8,
