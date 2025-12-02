@@ -10,13 +10,15 @@ interface CustomBarChartProps {
   width: number;
   height?: number;
   barPercentage?: number;
+  color?: string;
 }
 
 export const CustomBarChart = ({ 
   data, 
   width, 
   height = 230,
-  barPercentage = 0.6
+  barPercentage = 0.6,
+  color = '#000'
 }: CustomBarChartProps) => {
   // Match padding and axes style to CustomLineChart for consistency
   const paddingLeft = 32;
@@ -132,7 +134,7 @@ export const CustomBarChart = ({
               y={bar.y}
               width={bar.w}
               height={bar.h}
-              fill="#000"
+              fill={color}
             />
             {/* Value label on top of bar (hide zero) */}
             {bar.v !== 0 ? (

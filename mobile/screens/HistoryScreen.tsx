@@ -10,6 +10,8 @@ import { CustomBarChart } from '../components/charts/CustomBarChart';
 import { CustomLineChart } from '../components/charts/CustomLineChart';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { TimePeriodNavigator } from '../components/TimePeriodNavigator';
+import { ColorPickerDialog } from '../components/ColorPickerDialog';
+import { colorPrefs, DEFAULT_COLORS } from '../lib/colorPrefs';
 
 type Timeframe = 'week' | 'month' | 'year';
 type ChartType = 'line' | 'bar';
@@ -21,6 +23,9 @@ export default function HistoryScreen() {
   const [periodOffsets, setPeriodOffsets] = useState<Record<string, number>>({}); // Track offset per event
   const [loading, setLoading] = useState(true);
   const [chartTypes, setChartTypes] = useState<Record<string, ChartType>>({});
+  const [chartColors, setChartColors] = useState<Record<string, string>>({});
+  const [colorPickerVisible, setColorPickerVisible] = useState(false);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const navigation = useNavigation();
 
   const loadData = async () => {
@@ -42,6 +47,14 @@ export default function HistoryScreen() {
       // Load persisted prefs and merge (prefs override defaults)
       const prefs = await chartPrefs.getAll();
       setChartTypes(prev => ({ ...prev, ...initialChartTypes, ...prefs }));
+      
+      // Load persisted colors
+      const colorPreferences = await colorPrefs.getAll();
+      const initialColors: Record<string, string> = {};
+      allEvents.forEach(event => {
+        initialColors[event.id] = colorPreferences[event.id] || DEFAULT_COLORS[0];
+      });
+      setChartColors(initialColors);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -79,6 +92,13 @@ export default function HistoryScreen() {
   useEffect(() => {
     setPeriodOffsets({});
   }, [timeframe]);
+
+  const handleColorSelect = (color: string) => {
+    if (selectedEventId) {
+      setChartColors(prev => ({ ...prev, [selectedEventId]: color }));
+      colorPrefs.set(selectedEventId, color).catch(() => {});
+    }
+  };
 
   const getChartDataForEvent = (eventId: string, offset: number = 0) => {
     const event = events.find(e => e.id === eventId);
@@ -257,6 +277,7 @@ export default function HistoryScreen() {
         const periodOffset = periodOffsets[event.id] || 0;
         const chartData = getChartDataForEvent(event.id, periodOffset);
         const isBarChart = chartTypes[event.id] === 'bar';
+        const chartColor = chartColors[event.id] || DEFAULT_COLORS[0];
         
         // Swipe gesture to navigate between periods
         const swipeGesture = Gesture.Pan()
@@ -284,6 +305,15 @@ export default function HistoryScreen() {
                   }
                 />
                 <TouchableOpacity 
+                  style={styles.colorButton}
+                  onPress={() => {
+                    setSelectedEventId(event.id);
+                    setColorPickerVisible(true);
+                  }}
+                >
+                  <View style={[styles.colorCircle, { backgroundColor: chartColor }]} />
+                </TouchableOpacity>
+                <TouchableOpacity 
                   style={styles.toggleButton}
                   onPress={() => toggleChartType(event.id)}
                 >
@@ -303,11 +333,13 @@ export default function HistoryScreen() {
                     data={chartData} 
                     width={chartWidth}
                     barPercentage={barPercentage}
+                    color={chartColor}
                   />
                 ) : (
                   <CustomLineChart 
                     data={chartData} 
                     width={chartWidth}
+                    color={chartColor}
                   />
                 )}
               </View>
@@ -316,6 +348,13 @@ export default function HistoryScreen() {
         );
       })}
     </ScrollView>
+
+    <ColorPickerDialog
+      visible={colorPickerVisible}
+      onClose={() => setColorPickerVisible(false)}
+      currentColor={selectedEventId ? (chartColors[selectedEventId] || DEFAULT_COLORS[0]) : DEFAULT_COLORS[0]}
+      onColorSelect={handleColorSelect}
+    />
     </GestureHandlerRootView>
   );
 }
@@ -388,6 +427,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
     flexShrink: 0,
+  },
+  colorButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  colorCircle: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
   },
   toggleButton: {
     padding: 8,

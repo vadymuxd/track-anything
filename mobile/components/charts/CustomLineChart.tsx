@@ -9,18 +9,30 @@ interface CustomLineChartProps {
   };
   width: number;
   height?: number;
+  color?: string;
 }
 
 export const CustomLineChart = ({ 
   data, 
   width, 
-  height = 220
+  height = 220,
+  color = '#000'
 }: CustomLineChartProps) => {
   // Internal padding so we fully control spacing between Y-axis and line
   const paddingLeft = 32; // controls gap between Y-axis and first point
   const paddingRight = 16;
   const paddingTop = 16;
   const paddingBottom = 24;
+
+  // Convert hex color to rgba
+  const hexToRgba = (hex: string, alpha: number) => {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r},${g},${b},${alpha})`;
+  };
+
+  const gradientId = `lineFill-${color.replace('#', '')}`;
 
   const { path, fillPath, yTicks, minVal, maxVal } = useMemo(() => {
     const values = data.datasets[0]?.data ?? [];
@@ -85,10 +97,10 @@ export const CustomLineChart = ({
     <View style={{ alignItems: 'center' }}>
       <Svg width={width} height={height}>
         <Defs>
-          <LinearGradient id="lineFill" x1="0" y1="0" x2="0" y2="1">
+          <LinearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
             {/* 100% opacity at top of chart area, 0 at bottom */}
-            <Stop offset="0" stopColor="rgba(0,0,0,0.2)" stopOpacity="1" />
-            <Stop offset="1" stopColor="rgba(0,0,0,0)" stopOpacity="0" />
+            <Stop offset="0" stopColor={hexToRgba(color, 0.2)} stopOpacity="1" />
+            <Stop offset="1" stopColor={hexToRgba(color, 0)} stopOpacity="0" />
           </LinearGradient>
         </Defs>
         {/* Y-axis line */}
@@ -151,14 +163,14 @@ export const CustomLineChart = ({
 
         {/* Area under curve */}
         {fillPath ? (
-          <Path d={fillPath} fill="url(#lineFill)" stroke="none" />
+          <Path d={fillPath} fill={`url(#${gradientId})`} stroke="none" />
         ) : null}
 
         {/* Line path */}
         {path ? (
           <Path
             d={path}
-            stroke="#000"
+            stroke={color}
             strokeWidth={2}
             fill="none"
           />
