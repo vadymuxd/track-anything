@@ -1,16 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Animated } from 'react-native';
 import { Event, eventRepo } from '../lib/eventRepo';
-import { logRepo } from '../lib/logRepo';
+import { logRepo, Log } from '../lib/logRepo';
 import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
 
 interface LogEventDialogProps {
   visible: boolean;
   onClose: () => void;
   onSave: () => void;
+  log?: Log | null;
+  onDelete?: () => void;
 }
 
-export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps) => {
+export const LogEventDialog = ({ visible, onClose, onSave, log, onDelete }: LogEventDialogProps) => {
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<string>('');
   const [scaleValue, setScaleValue] = useState<number>(1);
@@ -60,8 +62,13 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
     try {
       const allEvents = await eventRepo.list();
       setEvents(allEvents);
-      if (allEvents.length > 0) {
+      if (log) {
+        // If editing a log, set the event and value from the log
+        setSelectedEvent(log.event_id || '');
+        setScaleValue(log.value);
+      } else if (allEvents.length > 0) {
         setSelectedEvent(allEvents[0].id);
+        setScaleValue(1);
       }
     } catch (error) {
       console.error('Error loading events:', error);
@@ -80,11 +87,21 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
     
     setSaving(true);
     try {
-      await logRepo.create({
-        event_id: event.id,
-        event_name: event.event_name,
-        value,
-      });
+      if (log) {
+        // Update existing log
+        await logRepo.update(log.id, {
+          event_id: event.id,
+          event_name: event.event_name,
+          value,
+        });
+      } else {
+        // Create new log
+        await logRepo.create({
+          event_id: event.id,
+          event_name: event.event_name,
+          value,
+        });
+      }
 
       // Emit event to notify all screens to refresh
       dataEmitter.emit(DATA_UPDATED_EVENT);
@@ -161,7 +178,7 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
           <View style={styles.dialog}>
           <ScrollView showsVerticalScrollIndicator={false}>
             <View style={styles.headerRow}>
-              <Text style={styles.title}>Log Event</Text>
+              <Text style={styles.title}>{log ? 'Edit Log' : 'Log Event'}</Text>
               <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <Text style={styles.closeIcon}>×</Text>
               </TouchableOpacity>
@@ -178,6 +195,7 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
                       selectedEvent === event.id && styles.eventOptionActive
                     ]}
                     onPress={() => setSelectedEvent(event.id)}
+                    disabled={!!log}
                   >
                     <Text style={[
                       styles.eventOptionText,
@@ -219,9 +237,15 @@ export const LogEventDialog = ({ visible, onClose, onSave }: LogEventDialogProps
 
             <View style={styles.buttons}>
               <TouchableOpacity style={styles.saveButton} onPress={handleLog} disabled={saving}>
-                <Text style={styles.saveButtonText}>{saving ? 'Submitting...' : 'Submit'}</Text>
+                <Text style={styles.saveButtonText}>{saving ? 'Saving...' : 'Save'}</Text>
               </TouchableOpacity>
             </View>
+            
+            {log && onDelete && (
+              <TouchableOpacity style={styles.deleteButton} onPress={() => { onClose(); onDelete(); }}>
+                <Text style={styles.deleteButtonText}>Remove Log</Text>
+              </TouchableOpacity>
+            )}
           </ScrollView>
           </View>
         </Animated.View>
@@ -372,5 +396,15 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
     color: '#fff',
+  },
+  deleteButton: {
+    padding: 14,
+    marginTop: 12,
+    alignItems: 'center',
+  },
+  deleteButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#dc3545',
   },
 });

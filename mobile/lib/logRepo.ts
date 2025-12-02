@@ -15,6 +15,18 @@ export const logRepo = {
     return data || [];
   },
 
+  async listByDateRange(startDate: string, endDate: string): Promise<Log[]> {
+    const { data, error } = await supabase
+      .from('logs')
+      .select('*')
+      .gte('created_at', startDate)
+      .lte('created_at', endDate)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    return data || [];
+  },
+
   async listByEvent(eventId: string): Promise<Log[]> {
     const { data, error } = await supabase
       .from('logs')
@@ -41,6 +53,18 @@ export const logRepo = {
     const { data, error } = await supabase
       .from('logs')
       .insert(log as any)
+      .select()
+      .single();
+    
+    if (error) throw error;
+    return data;
+  },
+
+  async update(id: string, log: Partial<LogInsert>): Promise<Log> {
+    const { data, error } = await supabase
+      .from('logs')
+      .update(log as any)
+      .eq('id', id)
       .select()
       .single();
     

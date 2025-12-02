@@ -1,22 +1,36 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet } from 'react-native';
+import { View, Text, FlatList, StyleSheet, TouchableOpacity } from 'react-native';
 import { logRepo, Log } from '../lib/logRepo';
 import { eventRepo, Event } from '../lib/eventRepo';
 import { useFocusEffect } from '@react-navigation/native';
 import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
+import { LogEventDialog } from '../components/LogEventDialog';
+import { MonthNavigator } from '../components/MonthNavigator';
 
 export default function LogsScreen() {
   const [logs, setLogs] = useState<Log[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [dialogVisible, setDialogVisible] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<Log | null>(null);
+  const [monthOffset, setMonthOffset] = useState(0);
 
   const loadData = async () => {
     try {
-      const [allLogs, allEvents] = await Promise.all([
-        logRepo.list(),
+      // Calculate date range for the selected month
+      const now = new Date();
+      const targetMonth = new Date(now.getFullYear(), now.getMonth() + monthOffset, 1);
+      const startDate = new Date(targetMonth.getFullYear(), targetMonth.getMonth(), 1);
+      const endDate = new Date(targetMonth.getFullYear(), targetMonth.getMonth() + 1, 0, 23, 59, 59, 999);
+      
+      const startDateStr = startDate.toISOString();
+      const endDateStr = endDate.toISOString();
+
+      const [monthLogs, allEvents] = await Promise.all([
+        logRepo.listByDateRange(startDateStr, endDateStr),
         eventRepo.list()
       ]);
-      setLogs(allLogs);
+      setLogs(monthLogs);
       setEvents(allEvents);
     } catch (error) {
       console.error('Error loading logs:', error);
@@ -28,7 +42,7 @@ export default function LogsScreen() {
   useFocusEffect(
     React.useCallback(() => {
       loadData();
-    }, [])
+    }, [monthOffset])
   );
 
   // Listen for data updates from anywhere in the app
@@ -42,7 +56,7 @@ export default function LogsScreen() {
     return () => {
       dataEmitter.off(DATA_UPDATED_EVENT, handleDataUpdate);
     };
-  }, []);
+  }, [monthOffset]);
 
   const formatValue = (log: Log) => {
     const event = events.find(e => (log as any).event_id ? e.id === (log as any).event_id : e.event_name === log.event_name);
@@ -66,14 +80,33 @@ export default function LogsScreen() {
     });
   };
 
+  const handleLogPress = (log: Log) => {
+    setSelectedLog(log);
+    setDialogVisible(true);
+  };
+
+  const handleDelete = async () => {
+    if (!selectedLog) return;
+    
+    try {
+      await logRepo.delete(selectedLog.id);
+      dataEmitter.emit(DATA_UPDATED_EVENT);
+      setDialogVisible(false);
+      setSelectedLog(null);
+    } catch (error) {
+      console.error('Error deleting log:', error);
+      alert('Failed to delete log');
+    }
+  };
+
   const renderLog = ({ item }: { item: Log }) => (
-    <View style={styles.logItem}>
+    <TouchableOpacity style={styles.logItem} onPress={() => handleLogPress(item)}>
       <View style={styles.logContent}>
         <Text style={styles.eventName}>{(events.find(e => (item as any).event_id ? e.id === (item as any).event_id : e.event_name === item.event_name) || { event_name: item.event_name }).event_name}</Text>
         <Text style={styles.value}>{formatValue(item)}</Text>
       </View>
       <Text style={styles.date}>{formatDate(item.created_at)}</Text>
-    </View>
+    </TouchableOpacity>
   );
 
   if (loading) {
@@ -86,16 +119,40 @@ export default function LogsScreen() {
 
   return (
     <View style={styles.container}>
-      {logs.length === 0 ? (
-        <Text style={styles.emptyText}>No logs yet. Start tracking to see your history.</Text>
-      ) : (
-        <FlatList
-          data={logs}
-          renderItem={renderLog}
-          keyExtractor={(item) => item.id}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
+      <View style={styles.navigatorContainer}>
+        <MonthNavigator
+          offset={monthOffset}
+          onOffsetChange={setMonthOffset}
         />
-      )}
+      </View>
+      
+      <View style={styles.listContainer}>
+        {logs.length === 0 ? (
+          <Text style={styles.emptyText}>No logs for this month.</Text>
+        ) : (
+          <FlatList
+            data={logs}
+            renderItem={renderLog}
+            keyExtractor={(item) => item.id}
+            ItemSeparatorComponent={() => <View style={styles.separator} />}
+          />
+        )}
+      </View>
+      
+      <LogEventDialog
+        visible={dialogVisible}
+        onClose={() => {
+          setDialogVisible(false);
+          setSelectedLog(null);
+        }}
+        onSave={() => {
+          setDialogVisible(false);
+          setSelectedLog(null);
+          loadData();
+        }}
+        log={selectedLog}
+        onDelete={handleDelete}
+      />
     </View>
   );
 }
@@ -104,7 +161,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    padding: 16,
+  },
+  navigatorContainer: {
+  },
+  listContainer: {
+    flex: 1,
+    paddingHorizontal: 16,
   },
   logItem: {
     flexDirection: 'row',
