@@ -7,7 +7,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { MaterialIcons } from '@expo/vector-icons';
 import EventsScreen from './screens/EventsScreen';
 import HistoryScreen from './screens/HistoryScreen';
+import LogsScreen from './screens/LogsScreen';
 import { LogEventDialog } from './components/LogEventDialog';
+import { CustomHeader } from './components/CustomHeader';
 
 const Tab = createBottomTabNavigator();
 
@@ -112,14 +114,8 @@ export default function App() {
         <NavigationContainer>
           <Tab.Navigator
             screenOptions={{
+              header: ({ route }) => <CustomHeader title={route.name} />,
               headerShown: true,
-              headerStyle: {
-                backgroundColor: '#fff',
-              },
-              headerTitleStyle: {
-                fontSize: 18,
-                fontWeight: '600',
-              },
               tabBarStyle: {
                 paddingBottom: 25,
                 paddingTop: 5,
@@ -143,21 +139,19 @@ export default function App() {
             <Tab.Screen 
               name="Events" 
               component={EventsScreen}
-              options={({ navigation }) => ({ 
+              options={{ 
                 tabBarLabel: 'Events',
                 tabBarIcon: ({ color }) => <MaterialIcons name="event" size={24} color={color} />,
-                headerRight: () => (
-                  <TouchableOpacity
-                    style={{ marginRight: 16 }}
-                    onPress={() => {
-                      // Navigate to Events screen and trigger the add event action
-                      navigation.navigate('Events', { openDialog: true });
-                    }}
-                  >
-                    <Text style={{ fontSize: 32, fontWeight: '300', color: '#000' }}>+</Text>
-                  </TouchableOpacity>
-                ),
-              })}
+              }}
+            />
+            <Tab.Screen 
+              name="Logs" 
+              component={LogsScreen}
+              options={{ 
+                // Keep Logs as a route (for burger navigation) but hide its tab completely
+                tabBarButton: () => null,
+                tabBarItemStyle: { display: 'none' },
+              }}
             />
           </Tab.Navigator>
           

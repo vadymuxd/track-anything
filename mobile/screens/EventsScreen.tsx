@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { eventRepo, Event } from '../lib/eventRepo';
-import { logRepo, Log } from '../lib/logRepo';
+import { logRepo } from '../lib/logRepo';
 import { EventDialog } from '../components/EventDialog';
 import { useFocusEffect } from '@react-navigation/native';
 import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
@@ -9,21 +9,15 @@ import { MaterialIcons } from '@expo/vector-icons';
 
 export default function EventsScreen({ route, navigation }: any) {
   const [events, setEvents] = useState<Event[]>([]);
-  const [logs, setLogs] = useState<Log[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [logCounts, setLogCounts] = useState<Record<string, number>>({});
-  const [menuVisible, setMenuVisible] = useState<string | null>(null);
 
   const loadEvents = async () => {
     try {
-      const [data, allLogs] = await Promise.all([
-        eventRepo.list(),
-        logRepo.list()
-      ]);
+      const data = await eventRepo.list();
       setEvents(data);
-      setLogs(allLogs);
       
       // Load log counts
       const counts: Record<string, number> = {};
@@ -92,34 +86,12 @@ export default function EventsScreen({ route, navigation }: any) {
   const handleEdit = (event: Event) => {
     setEditingEvent(event);
     setIsDialogOpen(true);
-    setMenuVisible(null);
   };
 
   const handleSave = () => {
     loadEvents();
     setEditingEvent(null);
     setIsDialogOpen(false);
-  };
-
-  const formatValue = (log: Log) => {
-    const event = events.find(e => (log as any).event_id ? e.id === (log as any).event_id : e.event_name === log.event_name);
-    if (!event) return log.value.toString();
-    
-    const eventType = String(event.event_type);
-    if (eventType === 'Count') {
-      return '1';
-    }
-    return `${log.value}${event.scale_label ? ' ' + event.scale_label : ''}`;
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
-    });
   };
 
   const renderEvent = ({ item }: { item: Event }) => (
@@ -140,18 +112,6 @@ export default function EventsScreen({ route, navigation }: any) {
     </View>
   );
 
-  const renderLog = ({ item }: { item: Log }) => {
-    const event = events.find(e => (item as any).event_id ? e.id === (item as any).event_id : e.event_name === item.event_name);
-    return (
-      <View style={styles.logItem}>
-        <View style={styles.logContent}>
-          <Text style={styles.logText}>{event ? event.event_name : item.event_name}, {formatValue(item)}</Text>
-        </View>
-        <Text style={styles.date}>{formatDate(item.created_at)}</Text>
-      </View>
-    );
-  };
-
   if (loading) {
     return (
       <View style={styles.container}>
@@ -162,39 +122,52 @@ export default function EventsScreen({ route, navigation }: any) {
 
   return (
     <View style={styles.container}>
-      <FlatList
-        showsVerticalScrollIndicator={false}
-        ListHeaderComponent={
-          <>
-            {events.length === 0 ? (
-              <Text style={styles.emptyText}>No events yet. Create your first event to get started.</Text>
-            ) : (
-              <View>
-                {events.map((item) => (
-                  <View key={item.id}>
-                    {renderEvent({ item })}
-                  </View>
-                ))}
+      {/* Tracking Events Section */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Tracking Events</Text>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => {
+              setEditingEvent(null);
+              setIsDialogOpen(true);
+            }}
+          >
+            <Text style={styles.addButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+
+        {loading ? (
+          <Text style={styles.loadingText}>Loading...</Text>
+        ) : events.length === 0 ? (
+          <Text style={styles.emptyText}>No events yet. Create your first event to get started.</Text>
+        ) : (
+          <View>
+            {events.map((item) => (
+              <View key={item.id}>
+                {renderEvent({ item })}
               </View>
-            )}
-            
-            {/* Separator */}
-            <View style={styles.separator} />
-            
-            {/* Log Section Header */}
-            <Text style={styles.logHeader}>Log</Text>
-          </>
-        }
-        data={logs}
-        renderItem={renderLog}
-        keyExtractor={(item) => item.id}
-        ListEmptyComponent={
-          logs.length === 0 ? (
-            <Text style={styles.emptyText}>No logs yet. Start tracking to see your history.</Text>
-          ) : null
-        }
-        ItemSeparatorComponent={() => <View style={styles.logSeparator} />}
-      />
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Impact Notes Section */}
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Impact Notes</Text>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => {
+              // TODO: Will be implemented later
+            }}
+          >
+            <Text style={styles.addButtonText}>+</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.emptyText}>Coming soon...</Text>
+      </View>
 
       <EventDialog
         visible={isDialogOpen}
@@ -214,29 +187,42 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
-    padding: 16,
   },
-  header: {
+  section: {
+    paddingHorizontal: 16,
+    paddingTop: 20,
+    paddingBottom: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e9ecef',
+  },
+  sectionHeader: {
     flexDirection: 'row',
-    justifyContent: 'flex-end',
+    justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#000',
+  },
   addButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'transparent',
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f0f0f0',
     alignItems: 'center',
     justifyContent: 'center',
   },
   addButtonText: {
-    fontSize: 28,
-    color: '#000',
+    fontSize: 24,
+    color: '#333',
     fontWeight: '300',
+    lineHeight: 24,
   },
-  list: {
-    paddingBottom: 12,
+  loadingText: {
+    textAlign: 'center',
+    color: '#666',
   },
   eventCard: {
     marginBottom: 12,
@@ -266,43 +252,6 @@ const styles = StyleSheet.create({
   emptyText: {
     textAlign: 'center',
     color: '#666',
-    marginTop: 32,
-  },
-  separator: {
-    height: 0,
-    marginVertical: 24,
-  },
-  logHeader: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-    color: '#000',
-  },
-  logItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingVertical: 12,
-  },
-  logContent: {
-    flex: 1,
-    marginRight: 12,
-  },
-  value: {
-    fontSize: 14,
-    color: '#666',
-  },
-  date: {
-    fontSize: 14,
-    color: '#666',
-    flexShrink: 0,
-  },
-  logText: {
-    fontSize: 16,
-    color: '#000',
-  },
-  logSeparator: {
-    height: 1,
-    backgroundColor: '#e9ecef',
+    paddingVertical: 20,
   },
 });
