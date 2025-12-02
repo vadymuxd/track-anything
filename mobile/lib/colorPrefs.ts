@@ -1,4 +1,5 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { supabase } from './supabase';
 
 const COLOR_PREFS_KEY = '@chart_colors';
 
@@ -34,6 +35,15 @@ export const colorPrefs = {
       const prefs = stored ? JSON.parse(stored) : {};
       prefs[eventId] = color;
       await AsyncStorage.setItem(COLOR_PREFS_KEY, JSON.stringify(prefs));
+      
+      // Sync to database in background
+      supabase
+        .from('events')
+        .update({ color })
+        .eq('id', eventId)
+        .then(({ error }) => {
+          if (error) console.error('Failed to sync color to DB:', error);
+        });
     } catch (error) {
       console.error('Error saving color pref:', error);
     }
@@ -46,6 +56,24 @@ export const colorPrefs = {
     } catch (error) {
       console.error('Error reading all color prefs:', error);
       return {};
+    }
+  },
+
+  async syncColorsToDatabase(eventIds: string[]): Promise<void> {
+    try {
+      const localColors = await this.getAll();
+      const updates = eventIds
+        .filter(eventId => localColors[eventId] !== undefined)
+        .map(eventId => 
+          supabase
+            .from('events')
+            .update({ color: localColors[eventId] })
+            .eq('id', eventId)
+        );
+      
+      await Promise.all(updates);
+    } catch (error) {
+      console.error('Failed to sync colors to DB:', error);
     }
   },
 };

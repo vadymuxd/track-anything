@@ -109,6 +109,24 @@ export default function EventsScreen({ route, navigation }: any) {
     setIsDialogOpen(true);
   };
 
+  const handleMoveUp = async (event: Event) => {
+    try {
+      await eventRepo.moveUp(event.id, events);
+      loadEvents();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to reorder event');
+    }
+  };
+
+  const handleMoveDown = async (event: Event) => {
+    try {
+      await eventRepo.moveDown(event.id, events);
+      loadEvents();
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to reorder event');
+    }
+  };
+
   const handleSave = () => {
     loadEvents();
     setEditingEvent(null);
@@ -153,14 +171,21 @@ export default function EventsScreen({ route, navigation }: any) {
     return event?.event_name || 'Unknown Event';
   };
 
-  const renderEvent = ({ item }: { item: Event }) => (
-    <EventComponent 
-      event={item}
-      logCount={logCounts[item.id] || 0}
-      onEdit={() => handleEdit(item)}
-      color={chartColors[item.id] || DEFAULT_COLORS[0]}
-    />
-  );
+  const renderEvent = ({ item }: { item: Event }) => {
+    const index = events.findIndex(e => e.id === item.id);
+    return (
+      <EventComponent 
+        event={item}
+        logCount={logCounts[item.id] || 0}
+        onEdit={() => handleEdit(item)}
+        onMoveUp={() => handleMoveUp(item)}
+        onMoveDown={() => handleMoveDown(item)}
+        canMoveUp={index > 0}
+        canMoveDown={index < events.length - 1}
+        color={chartColors[item.id] || DEFAULT_COLORS[0]}
+      />
+    );
+  };
 
   const renderNote = ({ item }: { item: Note }) => (
     <NoteComponent 

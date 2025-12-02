@@ -17,6 +17,8 @@ export interface Database {
           event_type: string // 'Count', 'Scale', 'Yes-No', etc.
           scale_label: string | null
           scale_max: number | null
+          position: number
+          color: string
         }
         Insert: {
           id?: string
@@ -25,6 +27,8 @@ export interface Database {
           event_type: string
           scale_label?: string | null
           scale_max?: number | null
+          position?: number
+          color?: string
         }
         Update: {
           id?: string
@@ -33,6 +37,8 @@ export interface Database {
           event_type?: string
           scale_label?: string | null
           scale_max?: number | null
+          position?: number
+          color?: string
         }
       }
       logs: {

@@ -7,12 +7,29 @@ interface EventComponentProps {
   event: Event;
   logCount: number;
   onEdit: () => void;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
+  canMoveUp: boolean;
+  canMoveDown: boolean;
   color?: string;
 }
 
-export const EventComponent = ({ event, logCount, onEdit, color = '#000' }: EventComponentProps) => {
+export const EventComponent = ({ 
+  event, 
+  logCount, 
+  onEdit, 
+  onMoveUp, 
+  onMoveDown, 
+  canMoveUp, 
+  canMoveDown, 
+  color = '#000' 
+}: EventComponentProps) => {
   return (
-    <View style={[styles.eventCard, { backgroundColor: color }]}>
+    <TouchableOpacity 
+      style={[styles.eventCard, { backgroundColor: color }]}
+      onPress={onEdit}
+      activeOpacity={0.7}
+    >
       <View style={styles.eventInfo}>
         <Text style={styles.eventName}>{event.event_name}</Text>
         <Text style={styles.eventMeta}>
@@ -20,10 +37,29 @@ export const EventComponent = ({ event, logCount, onEdit, color = '#000' }: Even
           {String(event.event_type) === 'Scale' && ` (1-${event.scale_max} ${event.scale_label})`}
         </Text>
       </View>
-      <TouchableOpacity onPress={onEdit} style={styles.editButton}>
-        <MaterialIcons name="edit" size={20} color="#fff" />
-      </TouchableOpacity>
-    </View>
+      <View style={styles.controls}>
+        <TouchableOpacity 
+          onPress={(e) => {
+            e.stopPropagation();
+            onMoveUp();
+          }} 
+          style={[styles.controlButton, !canMoveUp && styles.controlButtonDisabled]}
+          disabled={!canMoveUp}
+        >
+          <MaterialIcons name="keyboard-arrow-up" size={24} color="rgba(255, 255, 255, 0.5)" />
+        </TouchableOpacity>
+        <TouchableOpacity 
+          onPress={(e) => {
+            e.stopPropagation();
+            onMoveDown();
+          }} 
+          style={[styles.controlButton, !canMoveDown && styles.controlButtonDisabled]}
+          disabled={!canMoveDown}
+        >
+          <MaterialIcons name="keyboard-arrow-down" size={24} color="rgba(255, 255, 255, 0.5)" />
+        </TouchableOpacity>
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -50,7 +86,14 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: 'rgba(255, 255, 255, 0.5)',
   },
-  editButton: {
-    padding: 8,
+  controls: {
+    flexDirection: 'column',
+    gap: 4,
+  },
+  controlButton: {
+    padding: 4,
+  },
+  controlButtonDisabled: {
+    opacity: 0.2,
   },
 });
