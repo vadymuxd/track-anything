@@ -6,7 +6,7 @@ import { noteRepo, Note } from '../lib/noteRepo';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
 import { MaterialIcons } from '@expo/vector-icons';
-import { chartPrefs, ChartType } from '../lib/chartPrefs';
+import { chartPrefs, ChartType as ChartPrefType } from '../lib/chartPrefs';
 import { CustomBarChart } from '../components/charts/CustomBarChart';
 import { CustomLineChart } from '../components/charts/CustomLineChart';
 import { NoteDialog } from '../components/NoteDialog';
@@ -16,7 +16,6 @@ import { colorPrefs, DEFAULT_COLORS } from '../lib/colorPrefs';
 import { NoteHint } from '../components/NoteHint';
 
 type Timeframe = 'week' | 'month' | 'year';
-type ChartType = 'line' | 'bar';
 
 export default function HistoryScreen() {
   const [events, setEvents] = useState<Event[]>([]);
@@ -25,7 +24,7 @@ export default function HistoryScreen() {
   const [timeframe, setTimeframe] = useState<Timeframe>('week');
   const [periodOffsets, setPeriodOffsets] = useState<Record<string, number>>({}); // Track offset per event
   const [loading, setLoading] = useState(true);
-  const [chartTypes, setChartTypes] = useState<Record<string, ChartType>>({});
+  const [chartTypes, setChartTypes] = useState<Record<string, ChartPrefType>>({});
   const [chartColors, setChartColors] = useState<Record<string, string>>({});
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
@@ -45,7 +44,7 @@ export default function HistoryScreen() {
       setNotes(allNotes);
       
       // Initialize chart types for all events (use event.id as key)
-      const initialChartTypes: Record<string, ChartType> = {};
+      const initialChartTypes: Record<string, ChartPrefType> = {};
       allEvents.forEach(event => {
         if (!(event.id in chartTypes)) {
           initialChartTypes[event.id] = 'line';
@@ -89,7 +88,7 @@ export default function HistoryScreen() {
   }, []);
 
   const toggleChartType = (eventId: string) => {
-    const next = (chartTypes[eventId] === 'line' ? 'bar' : 'line') as ChartType;
+    const next = (chartTypes[eventId] === 'line' ? 'bar' : 'line') as ChartPrefType;
     setChartTypes(prev => ({ ...prev, [eventId]: next }));
     // persist
     chartPrefs.set(eventId, next).catch(() => {});
@@ -113,7 +112,7 @@ export default function HistoryScreen() {
       if ((log as any).event_id) return (log as any).event_id === eventId;
       return log.event_name === event?.event_name;
     });
-    if (!event) return { labels: [], datasets: [{ data: [0] }] };
+    if (!event) return { labels: [], datasets: [{ data: [0] }], dateRanges: [] };
 
     const now = new Date();
     const labels: string[] = [];
@@ -330,16 +329,22 @@ export default function HistoryScreen() {
         const isBarChart = chartTypes[event.id] === 'bar';
         const chartColor = chartColors[event.id] || DEFAULT_COLORS[0];
         
-        // Swipe gesture to navigate between periods
+        // Horizontal swipe gesture that doesn't interfere with vertical scrolling
         const swipeGesture = Gesture.Pan()
+          .activeOffsetX([-10, 10]) // Activate after 10px horizontal movement
+          .failOffsetY([-10, 10])   // Fail if vertical movement exceeds 10px
           .onEnd((e) => {
             const threshold = 50; // minimum swipe distance
-            if (e.translationX > threshold) {
-              // Swipe right - go to previous period
-              setPeriodOffsets(prev => ({ ...prev, [event.id]: (prev[event.id] || 0) - 1 }));
-            } else if (e.translationX < -threshold && periodOffset < 0) {
-              // Swipe left - go to next period (but not future)
-              setPeriodOffsets(prev => ({ ...prev, [event.id]: (prev[event.id] || 0) + 1 }));
+            const isHorizontal = Math.abs(e.translationX) > Math.abs(e.translationY);
+            
+            if (isHorizontal) {
+              if (e.translationX > threshold) {
+                // Swipe right - go to previous period
+                setPeriodOffsets(prev => ({ ...prev, [event.id]: (prev[event.id] || 0) - 1 }));
+              } else if (e.translationX < -threshold && periodOffset < 0) {
+                // Swipe left - go to next period (but not future)
+                setPeriodOffsets(prev => ({ ...prev, [event.id]: (prev[event.id] || 0) + 1 }));
+              }
             }
           });
         
