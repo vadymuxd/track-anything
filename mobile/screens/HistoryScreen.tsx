@@ -13,6 +13,7 @@ import { NoteDialog } from '../components/NoteDialog';
 import { GestureHandlerRootView, GestureDetector, Gesture } from 'react-native-gesture-handler';
 import { TimePeriodNavigator } from '../components/TimePeriodNavigator';
 import { colorPrefs, DEFAULT_COLORS } from '../lib/colorPrefs';
+import { NoteHint } from '../components/NoteHint';
 
 type Timeframe = 'week' | 'month' | 'year';
 type ChartType = 'line' | 'bar';
@@ -28,6 +29,8 @@ export default function HistoryScreen() {
   const [chartColors, setChartColors] = useState<Record<string, string>>({});
   const [selectedNote, setSelectedNote] = useState<Note | null>(null);
   const [isNoteDialogOpen, setIsNoteDialogOpen] = useState(false);
+  const [hintNote, setHintNote] = useState<Note | null>(null);
+  const [hintPosition, setHintPosition] = useState<{ x: number; y: number } | null>(null);
   const navigation = useNavigation();
 
   const loadData = async () => {
@@ -243,14 +246,16 @@ export default function HistoryScreen() {
     return 0.6; // year
   }, [timeframe]);
 
-  const handleNotePress = (note: Note) => {
-    setSelectedNote(note);
-    setIsNoteDialogOpen(true);
+  const handleNotePress = (note: Note, position: { x: number; y: number }) => {
+    setHintNote(note);
+    setHintPosition(position);
   };
 
   const handleNoteDialogClose = () => {
     setIsNoteDialogOpen(false);
     setSelectedNote(null);
+    setHintNote(null);
+    setHintPosition(null);
   };
 
   const handleNoteSave = () => {
@@ -381,6 +386,18 @@ export default function HistoryScreen() {
                     eventId={event.id}
                     onNotePress={handleNotePress}
                     dateRanges={dateRanges}
+                  />
+                )}
+                {/* Show NoteHint if this event's note is selected */}
+                {hintNote && hintNote.event_id === event.id && hintPosition && (
+                  <NoteHint
+                    note={hintNote}
+                    x={hintPosition.x}
+                    y={hintPosition.y}
+                    onClose={() => {
+                      setHintNote(null);
+                      setHintPosition(null);
+                    }}
                   />
                 )}
               </View>

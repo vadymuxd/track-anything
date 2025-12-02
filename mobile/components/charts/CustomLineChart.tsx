@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, TouchableOpacity } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import Svg, { Path, Line, Text as SvgText, Defs, LinearGradient, Stop, Circle } from 'react-native-svg';
 import { Note } from '../../lib/noteRepo';
 
@@ -13,7 +13,7 @@ interface CustomLineChartProps {
   color?: string;
   notes?: Note[];
   eventId?: string;
-  onNotePress?: (note: Note) => void;
+  onNotePress?: (note: Note, position: { x: number; y: number }) => void;
   dateRanges?: Array<{ start: Date; end: Date }>; // Optional: date range for each data point
 }
 
@@ -231,29 +231,48 @@ export const CustomLineChart = ({
           );
         })}
 
-        {/* Note markers - render as circles on the line */}
+        {/* Note markers - visible circles on the line */}
         {notePositions.map((notePos, index) => (
-          <React.Fragment key={`note-${index}`}>
-            {/* Visible marker */}
-            <Circle
-              cx={notePos.x}
-              cy={notePos.y}
-              r={6}
-              fill={color}
-              stroke="#fff"
-              strokeWidth={2}
-            />
-            {/* Larger invisible hit area for easier tapping - rendered on top */}
-            <Circle
-              cx={notePos.x}
-              cy={notePos.y}
-              r={22}
-              fill="rgba(0,0,0,0.01)"
-              onPress={() => onNotePress && onNotePress(notePos.note)}
-            />
-          </React.Fragment>
+          <Circle
+            key={`note-${index}`}
+            cx={notePos.x}
+            cy={notePos.y}
+            r={6}
+            fill={color}
+            stroke="#fff"
+            strokeWidth={2}
+          />
         ))}
       </Svg>
+
+      {/* Absolute overlay for reliable tapping on notes */}
+      {notePositions.map((notePos, index) => (
+        <TouchableOpacity
+          key={`note-touch-${index}`}
+          activeOpacity={0.7}
+          style={[
+            styles.noteHitArea,
+            {
+              left: notePos.x - 24,
+              top: notePos.y - 24,
+            },
+          ]}
+          onPress={() =>
+            onNotePress && onNotePress(notePos.note, { x: notePos.x, y: notePos.y })
+          }
+        />
+      ))}
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  noteHitArea: {
+    position: 'absolute',
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    // Very subtle background so it does not show but still taps well
+    backgroundColor: 'transparent',
+  },
+});
