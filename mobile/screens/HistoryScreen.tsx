@@ -157,8 +157,8 @@ export default function HistoryScreen() {
       }
     } else if (timeframe === 'month') {
       // Last 2 full months, grouped by weeks with offset
-      const endDate = new Date(now.getFullYear(), now.getMonth() + offset, 1); // Apply offset to months
-      const startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 2, 1); // start of month two months ago
+      const endDate = new Date(now.getFullYear(), now.getMonth() + offset + 1, 1); // End of 2nd month
+      const startDate = new Date(endDate.getFullYear(), endDate.getMonth() - 2, 1); // Start of 1st month
 
       // find first Monday on/after startDate
       const startDay = startDate.getDay();
