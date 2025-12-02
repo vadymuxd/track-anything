@@ -10,6 +10,7 @@ import { NoteComponent } from '../components/NoteComponent';
 import { useFocusEffect } from '@react-navigation/native';
 import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
 import { MaterialIcons } from '@expo/vector-icons';
+import { colorPrefs, DEFAULT_COLORS } from '../lib/colorPrefs';
 
 export default function EventsScreen({ route, navigation }: any) {
   const [events, setEvents] = useState<Event[]>([]);
@@ -20,6 +21,7 @@ export default function EventsScreen({ route, navigation }: any) {
   const [editingEvent, setEditingEvent] = useState<Event | null>(null);
   const [editingNote, setEditingNote] = useState<Note | null>(null);
   const [logCounts, setLogCounts] = useState<Record<string, number>>({});
+  const [chartColors, setChartColors] = useState<Record<string, string>>({});
 
   const loadEvents = async () => {
     try {
@@ -37,6 +39,14 @@ export default function EventsScreen({ route, navigation }: any) {
       // Load notes
       const allNotes = await noteRepo.list();
       setNotes(allNotes);
+
+      // Load color preferences
+      const colorPreferences = await colorPrefs.getAll();
+      const initialColors: Record<string, string> = {};
+      data.forEach(event => {
+        initialColors[event.id] = colorPreferences[event.id] || DEFAULT_COLORS[0];
+      });
+      setChartColors(initialColors);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to load events');
     } finally {
@@ -148,6 +158,7 @@ export default function EventsScreen({ route, navigation }: any) {
       event={item}
       logCount={logCounts[item.id] || 0}
       onEdit={() => handleEdit(item)}
+      color={chartColors[item.id] || DEFAULT_COLORS[0]}
     />
   );
 

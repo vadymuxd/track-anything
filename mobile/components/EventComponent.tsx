@@ -7,11 +7,12 @@ interface EventComponentProps {
   event: Event;
   logCount: number;
   onEdit: () => void;
+  color?: string;
 }
 
-export const EventComponent = ({ event, logCount, onEdit }: EventComponentProps) => {
+export const EventComponent = ({ event, logCount, onEdit, color = '#000' }: EventComponentProps) => {
   return (
-    <View style={styles.eventCard}>
+    <View style={[styles.eventCard, { backgroundColor: color }]}>
       <View style={styles.eventInfo}>
         <Text style={styles.eventName}>{event.event_name}</Text>
         <Text style={styles.eventMeta}>
@@ -47,7 +48,7 @@ const styles = StyleSheet.create({
   },
   eventMeta: {
     fontSize: 14,
-    color: '#ccc',
+    color: 'rgba(255, 255, 255, 0.5)',
   },
   editButton: {
     padding: 8,
