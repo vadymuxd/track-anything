@@ -99,6 +99,27 @@ export default function HistoryScreen() {
     setPeriodOffsets({});
   }, [timeframe]);
 
+  const getYDomainForEvent = (event: Event, data: number[]) => {
+    const eventType = String(event.event_type);
+
+    if (eventType === 'Scale' && event.scale_max && event.scale_max > 0) {
+      return { yMin: 0, yMax: event.scale_max };
+    }
+
+    if (!data.length) {
+      return { yMin: 0, yMax: 1 };
+    }
+
+    const autoMin = Math.min(0, ...data);
+    const autoMax = Math.max(...data);
+
+    if (autoMax === autoMin) {
+      return { yMin: autoMin, yMax: autoMin + 1 };
+    }
+
+    return { yMin: autoMin, yMax: autoMax };
+  };
+
   const getChartDataForEvent = (
     eventId: string,
     offset: number = 0
@@ -326,6 +347,7 @@ export default function HistoryScreen() {
         const periodOffset = periodOffsets[event.id] || 0;
         const { labels, datasets, dateRanges } = getChartDataForEvent(event.id, periodOffset);
         const chartData = { labels, datasets };
+        const yDomain = getYDomainForEvent(event, datasets[0]?.data ?? []);
         const isBarChart = chartTypes[event.id] === 'bar';
         const chartColor = chartColors[event.id] || DEFAULT_COLORS[0];
 
@@ -361,12 +383,16 @@ export default function HistoryScreen() {
                   width={chartWidth}
                   barPercentage={barPercentage}
                   color={chartColor}
+                  yMin={yDomain.yMin}
+                  yMax={yDomain.yMax}
                 />
               ) : (
                 <CustomLineChart 
                   data={chartData} 
                   width={chartWidth}
                   color={chartColor}
+                  yMin={yDomain.yMin}
+                  yMax={yDomain.yMax}
                   notes={notes}
                   eventId={event.id}
                   onNotePress={handleNotePress}

@@ -11,6 +11,8 @@ interface CustomBarChartProps {
   height?: number;
   barPercentage?: number;
   color?: string;
+  yMin?: number;
+  yMax?: number;
 }
 
 export const CustomBarChart = ({ 
@@ -18,7 +20,9 @@ export const CustomBarChart = ({
   width, 
   height = 230,
   barPercentage = 0.6,
-  color = '#000'
+  color = '#000',
+  yMin,
+  yMax
 }: CustomBarChartProps) => {
   // Match padding and axes style to CustomLineChart for consistency
   const paddingLeft = 32;
@@ -36,8 +40,10 @@ export const CustomBarChart = ({
       return { bars: [] as { x: number; y: number; w: number; h: number; v: number }[], yTicks: [] as number[], minVal: 0, maxVal: 0 };
     }
 
-    const minVal = Math.min(0, ...values);
-    const maxVal = Math.max(...values);
+    const autoMin = Math.min(0, ...values);
+    const autoMax = Math.max(...values);
+    const minVal = yMin !== undefined ? yMin : autoMin;
+    const maxVal = yMax !== undefined ? yMax : autoMax;
     const range = maxVal - minVal || 1;
 
     const count = values.length;

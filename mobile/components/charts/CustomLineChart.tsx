@@ -11,6 +11,8 @@ interface CustomLineChartProps {
   width: number;
   height?: number;
   color?: string;
+  yMin?: number;
+  yMax?: number;
   notes?: Note[];
   eventId?: string;
   onNotePress?: (note: Note, position: { x: number; y: number }) => void;
@@ -22,6 +24,8 @@ export const CustomLineChart = ({
   width, 
   height = 220,
   color = '#000',
+  yMin,
+  yMax,
   notes = [],
   eventId = '',
   onNotePress,
@@ -53,8 +57,10 @@ export const CustomLineChart = ({
       return { path: '', fillPath: '', yTicks: [] as number[], minVal: 0, maxVal: 0, notePositions: [] as Array<{ x: number; y: number; note: Note }> };
     }
 
-    const minVal = Math.min(0, ...values);
-    const maxVal = Math.max(...values);
+    const autoMin = Math.min(0, ...values);
+    const autoMax = Math.max(...values);
+    const minVal = yMin !== undefined ? yMin : autoMin;
+    const maxVal = yMax !== undefined ? yMax : autoMax;
     const range = maxVal - minVal || 1;
 
     const stepX = values.length > 1 ? drawableWidth / (values.length - 1) : 0;
