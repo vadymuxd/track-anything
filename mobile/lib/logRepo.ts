@@ -61,14 +61,28 @@ export const logRepo = {
   },
 
   async update(id: string, log: Partial<LogInsert>): Promise<Log> {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from('logs')
       .update(log as any)
+      .eq('id', id);
+    
+    if (error) {
+      console.error('Update error:', error);
+      throw error;
+    }
+
+    // Fetch the updated log
+    const { data, error: fetchError } = await supabase
+      .from('logs')
+      .select('*')
       .eq('id', id)
-      .select()
       .single();
     
-    if (error) throw error;
+    if (fetchError || !data) {
+      console.error('Failed to fetch updated log:', id, fetchError);
+      throw new Error('Failed to fetch updated log');
+    }
+    
     return data;
   },
 
