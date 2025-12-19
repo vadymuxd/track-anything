@@ -106,12 +106,13 @@ export default function HistoryScreen() {
       return { yMin: 0, yMax: event.scale_max };
     }
 
-    if (!data.length) {
+    const finite = data.filter((v) => Number.isFinite(v));
+    if (!finite.length) {
       return { yMin: 0, yMax: 1 };
     }
 
-    const autoMin = Math.min(0, ...data);
-    const autoMax = Math.max(...data);
+    const autoMin = Math.min(0, ...finite);
+    const autoMax = Math.max(...finite);
 
     if (autoMax === autoMin) {
       return { yMin: autoMin, yMax: autoMin + 1 };
@@ -122,23 +123,148 @@ export default function HistoryScreen() {
 
   const getChartDataForEvent = (
     eventId: string,
-    offset: number = 0
+    offset: number = 0,
+    options?: { interpolateGaps?: boolean }
   ): {
     labels: string[];
     datasets: [{ data: number[] }];
     dateRanges: { start: Date; end: Date }[];
+    domainValues: number[];
   } => {
     const event = events.find(e => e.id === eventId);
     const eventLogs = logs.filter(log => {
       if ((log as any).event_id) return (log as any).event_id === eventId;
       return log.event_name === event?.event_name;
     });
-    if (!event) return { labels: [], datasets: [{ data: [0] }], dateRanges: [] };
+    if (!event) return { labels: [], datasets: [{ data: [0] }], dateRanges: [], domainValues: [0] };
+
+    const toDateOnly = (iso: string) => iso.substring(0, 10);
+    const getLogDateStr = (log: Log) => ((log as any).log_date as string | undefined) || toDateOnly(log.created_at);
+    const parseDateOnly = (ymd: string) => {
+      const [y, m, d] = ymd.split('-').map(Number);
+      return new Date(y, (m || 1) - 1, d || 1);
+    };
 
     const now = new Date();
     const labels: string[] = [];
     const data: number[] = [];
     const dateRanges: { start: Date; end: Date }[] = [];
+
+    const eventType = String(event.event_type);
+    const isCount = eventType === 'Count';
+    const isScale = eventType === 'Scale';
+    const shouldRound = isScale;
+    const shouldInterpolate = Boolean(options?.interpolateGaps) && !isCount;
+
+    const formatDateOnly = (d: Date) => {
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const parseYmdToDayIndex = (ymd: string) => {
+      const [y, m, d] = ymd.split('-').map(Number);
+      return Math.floor(Date.UTC(y, (m || 1) - 1, d || 1) / 86_400_000);
+    };
+
+    const parseYmToMonthIndex = (ym: string) => {
+      const [y, m] = ym.split('-').map(Number);
+      return (y || 0) * 12 + ((m || 1) - 1);
+    };
+
+    const getWeekStartMondayKey = (ymd: string) => {
+      const [y, m, d] = ymd.split('-').map(Number);
+      const utc = new Date(Date.UTC(y, (m || 1) - 1, d || 1));
+      // JS: 0=Sun..6=Sat. We want Monday as start.
+      const day = utc.getUTCDay();
+      const delta = day === 0 ? -6 : 1 - day;
+      utc.setUTCDate(utc.getUTCDate() + delta);
+      const yyyy = utc.getUTCFullYear();
+      const mm = String(utc.getUTCMonth() + 1).padStart(2, '0');
+      const dd = String(utc.getUTCDate()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd}`;
+    };
+
+    const getBucketKeyForLogDate = (ymd: string) => {
+      if (timeframe === 'week') return ymd;
+      if (timeframe === 'month') return getWeekStartMondayKey(ymd);
+      // year
+      return ymd.substring(0, 7);
+    };
+
+    const bucketKeyIndex = (key: string) => {
+      if (timeframe === 'year') return parseYmToMonthIndex(key);
+      return parseYmdToDayIndex(key);
+    };
+
+    // Build full-history bucket values for this event (not limited to current view)
+    const agg = new Map<string, { count: number; sum: number }>();
+    for (const log of eventLogs) {
+      const ymd = getLogDateStr(log);
+      const key = getBucketKeyForLogDate(ymd);
+      const cur = agg.get(key) || { count: 0, sum: 0 };
+      cur.count += 1;
+      cur.sum += log.value;
+      agg.set(key, cur);
+    }
+
+    const valueByKey = new Map<string, number>();
+    for (const [key, a] of agg.entries()) {
+      valueByKey.set(key, isCount ? a.count : a.sum / a.count);
+    }
+
+    // Y-domain should be based on the full history for this timeframe bucketization,
+    // not just the currently visible window.
+    const domainValues = Array.from(valueByKey.values());
+
+    const knownKeys = Array.from(valueByKey.keys()).sort();
+    const firstKnownKey = knownKeys[0];
+    const lastKnownKey = knownKeys[knownKeys.length - 1];
+
+    const lowerBound = (arr: string[], x: string) => {
+      let lo = 0;
+      let hi = arr.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (arr[mid] < x) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo;
+    };
+
+    const getInterpolatedValueForKey = (key: string): number => {
+      const direct = valueByKey.get(key);
+      if (direct !== undefined) return direct;
+
+      // For bars (or non-interpolated) we want missing values as 0.
+      if (!shouldInterpolate) return 0;
+
+      // If we have no known points, there's no line.
+      if (!knownKeys.length) return Number.NaN;
+
+      // Outside global first/last: no line.
+      if (key < firstKnownKey || key > lastKnownKey) return Number.NaN;
+
+      const idx = lowerBound(knownKeys, key);
+      const prevKey = idx > 0 ? knownKeys[idx - 1] : undefined;
+      const nextKey = idx < knownKeys.length ? knownKeys[idx] : undefined;
+
+      if (!prevKey || !nextKey) return Number.NaN;
+
+      const prevVal = valueByKey.get(prevKey);
+      const nextVal = valueByKey.get(nextKey);
+      if (prevVal === undefined || nextVal === undefined) return Number.NaN;
+
+      const prevI = bucketKeyIndex(prevKey);
+      const nextI = bucketKeyIndex(nextKey);
+      const curI = bucketKeyIndex(key);
+      const span = nextI - prevI;
+      if (span <= 0) return Number.NaN;
+
+      const t = (curI - prevI) / span;
+      return prevVal + (nextVal - prevVal) * t;
+    };
 
     if (timeframe === 'week') {
       // Last 7 days (Monday to Sunday) with offset
@@ -157,22 +283,12 @@ export default function HistoryScreen() {
         const endOfDay = new Date(date);
         endOfDay.setHours(23, 59, 59, 999);
 
-        const dateStr = date.toISOString().split('T')[0];
-        const dayLogs = eventLogs.filter(log => 
-          log.created_at.split('T')[0] === dateStr
-        );
-        
-        let value = 0;
-        if (String(event.event_type) === 'Count') {
-          value = dayLogs.length;
-        } else {
-          value = dayLogs.length > 0 
-            ? dayLogs.reduce((sum, log) => sum + log.value, 0) / dayLogs.length 
-            : 0;
-        }
+        const dateStr = formatDateOnly(date);
+        const key = dateStr;
+        const v = getInterpolatedValueForKey(key);
         
         labels.push(dayNames[i]);
-        data.push(Math.round(value * 10) / 10);
+        data.push(v);
         dateRanges.push({ start: startOfDay, end: endOfDay });
       }
     } else if (timeframe === 'month') {
@@ -195,25 +311,14 @@ export default function HistoryScreen() {
         weekEnd.setDate(weekEnd.getDate() + 6);
         weekEnd.setHours(23, 59, 59, 999);
 
-        const weekLogs = eventLogs.filter(log => {
-          const logDate = new Date(log.created_at);
-          return logDate >= weekStart && logDate <= weekEnd;
-        });
-
-        let value = 0;
-        if (String(event.event_type) === 'Count') {
-          value = weekLogs.length;
-        } else {
-          value = weekLogs.length > 0 
-            ? weekLogs.reduce((sum, log) => sum + log.value, 0) / weekLogs.length 
-            : 0;
-        }
+        const key = formatDateOnly(weekStart);
+        const v = getInterpolatedValueForKey(key);
 
         if (weekEnd >= startDate && weekStart < endDate) {
           const monthName = monthNames[weekStart.getMonth()];
           const day = weekStart.getDate();
           labels.push(`${monthName} ${day}`);
-          data.push(Math.round(value * 10) / 10);
+          data.push(v);
           dateRanges.push({ start: new Date(weekStart), end: new Date(weekEnd) });
         }
 
@@ -229,30 +334,28 @@ export default function HistoryScreen() {
         const endOfMonth = new Date(startOfNextMonth.getTime() - 1);
 
         const monthStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-        const monthLogs = eventLogs.filter(log => 
-          log.created_at.substring(0, 7) === monthStr
-        );
-        
-        let value = 0;
-        if (String(event.event_type) === 'Count') {
-          value = monthLogs.length;
-        } else {
-          value = monthLogs.length > 0 
-            ? monthLogs.reduce((sum, log) => sum + log.value, 0) / monthLogs.length 
-            : 0;
-        }
+        const v = getInterpolatedValueForKey(monthStr);
         
         const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
         labels.push(monthNames[date.getMonth()]);
-        data.push(Math.round(value * 10) / 10);
+        data.push(v);
         dateRanges.push({ start: startOfMonth, end: endOfMonth });
       }
     }
 
+    const finalData = shouldRound
+      ? data.map(v => (Number.isFinite(v) ? Math.round(v * 10) / 10 : v))
+      : data;
+
+    const finalDomainValues = shouldRound
+      ? domainValues.map(v => (Number.isFinite(v) ? Math.round(v * 10) / 10 : v))
+      : domainValues;
+
     return {
       labels,
-      datasets: [{ data: data.length > 0 ? data : [0] }],
-      dateRanges
+      datasets: [{ data: finalData.length > 0 ? finalData : [0] }],
+      dateRanges,
+      domainValues: finalDomainValues.length > 0 ? finalDomainValues : [0]
     };
   };
 
@@ -345,11 +448,13 @@ export default function HistoryScreen() {
       {/* Charts for all events */}
       {events.map((event) => {
         const periodOffset = periodOffsets[event.id] || 0;
-        const { labels, datasets, dateRanges } = getChartDataForEvent(event.id, periodOffset);
-        const chartData = { labels, datasets };
-        const yDomain = getYDomainForEvent(event, datasets[0]?.data ?? []);
         const isBarChart = chartTypes[event.id] === 'bar';
         const chartColor = chartColors[event.id] || DEFAULT_COLORS[0];
+        const { labels, datasets, dateRanges, domainValues } = getChartDataForEvent(event.id, periodOffset, {
+          interpolateGaps: !isBarChart && String(event.event_type) !== 'Count',
+        });
+        const chartData = { labels, datasets };
+        const yDomain = getYDomainForEvent(event, domainValues);
 
         return (
           <View key={event.id} style={styles.chartCard}>

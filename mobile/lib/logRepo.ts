@@ -25,6 +25,7 @@ export const logRepo = {
           .from('logs')
           .select('*')
           .eq('user_id', user.id)
+          .order('log_date', { ascending: false })
           .order('created_at', { ascending: false });
 
         if (error) throw error;
@@ -68,8 +69,9 @@ export const logRepo = {
         .from('logs')
         .select('*')
         .eq('user_id', user.id)
-        .gte('created_at', startDate)
-        .lte('created_at', endDate)
+        .gte('log_date', startDate.substring(0, 10))
+        .lte('log_date', endDate.substring(0, 10))
+        .order('log_date', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -109,6 +111,7 @@ export const logRepo = {
         .select('*')
         .eq('user_id', user.id)
         .eq('event_id', eventId)
+        .order('log_date', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -147,6 +150,7 @@ export const logRepo = {
         .select('*')
         .eq('user_id', user.id)
         .eq('event_name', eventName)
+        .order('log_date', { ascending: false })
         .order('created_at', { ascending: false });
 
       if (error) throw error;

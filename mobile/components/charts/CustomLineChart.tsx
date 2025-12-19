@@ -49,16 +49,17 @@ export const CustomLineChart = ({
 
   const { path, fillPath, yTicks, minVal, maxVal, notePositions } = useMemo(() => {
     const values = data.datasets[0]?.data ?? [];
+    const finiteValues = values.filter((v) => Number.isFinite(v));
 
     const drawableWidth = width - paddingLeft - paddingRight;
     const drawableHeight = height - paddingTop - paddingBottom;
 
-    if (!values.length || drawableWidth <= 0 || drawableHeight <= 0) {
+    if (!values.length || !finiteValues.length || drawableWidth <= 0 || drawableHeight <= 0) {
       return { path: '', fillPath: '', yTicks: [] as number[], minVal: 0, maxVal: 0, notePositions: [] as Array<{ x: number; y: number; note: Note }> };
     }
 
-    const autoMin = Math.min(0, ...values);
-    const autoMax = Math.max(...values);
+    const autoMin = Math.min(0, ...finiteValues);
+    const autoMax = Math.max(...finiteValues);
     const minVal = yMin !== undefined ? yMin : autoMin;
     const maxVal = yMax !== undefined ? yMax : autoMax;
     const range = maxVal - minVal || 1;
@@ -66,38 +67,32 @@ export const CustomLineChart = ({
     const stepX = values.length > 1 ? drawableWidth / (values.length - 1) : 0;
 
     const points = values.map((v, i) => {
+      if (!Number.isFinite(v)) return null;
       const x = paddingLeft + stepX * i;
       const y = paddingTop + drawableHeight - ((v - minVal) / range) * drawableHeight;
       return { x, y };
     });
 
-    // Build a smooth monotone cubic bezier path (similar to d3.curveMonotoneX)
-    let d = '';
-    if (points.length === 1) {
-      d = `M ${points[0].x} ${points[0].y}`;
-    } else {
-      const n = points.length;
+    const buildMonotonePath = (segment: Array<{ x: number; y: number }>) => {
+      if (segment.length === 1) return `M ${segment[0].x} ${segment[0].y}`;
+
+      const n = segment.length;
       const dx: number[] = [];
-      const dy: number[] = [];
-      const m: number[] = []; // segment slopes
+      const m: number[] = [];
 
       for (let i = 0; i < n - 1; i++) {
-        const p0 = points[i];
-        const p1 = points[i + 1];
+        const p0 = segment[i];
+        const p1 = segment[i + 1];
         const dxVal = p1.x - p0.x || 1;
         const dyVal = p1.y - p0.y;
         dx.push(dxVal);
-        dy.push(dyVal);
         m.push(dyVal / dxVal);
       }
 
       const t: number[] = new Array(n);
-
-      // endpoint tangents
       t[0] = m[0];
       t[n - 1] = m[n - 2];
 
-      // interior tangents as average of slopes, then clamped (Fritsch–Carlson)
       for (let i = 1; i < n - 1; i++) {
         if (m[i - 1] === 0 || m[i] === 0 || m[i - 1] * m[i] < 0) {
           t[i] = 0;
@@ -123,29 +118,45 @@ export const CustomLineChart = ({
         }
       }
 
-      d = `M ${points[0].x} ${points[0].y}`;
-
+      let d = `M ${segment[0].x} ${segment[0].y}`;
       for (let i = 0; i < n - 1; i++) {
-        const p0 = points[i];
-        const p1 = points[i + 1];
+        const p0 = segment[i];
+        const p1 = segment[i + 1];
         const dxVal = dx[i];
-
         const cp1x = p0.x + dxVal / 3;
         const cp1y = p0.y + (t[i] * dxVal) / 3;
         const cp2x = p1.x - dxVal / 3;
         const cp2y = p1.y - (t[i + 1] * dxVal) / 3;
-
         d += ` C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${p1.x} ${p1.y}`;
       }
-    }
+      return d;
+    };
 
-    // Closed path for area under the curve
-    let areaPath = '';
-    if (points.length) {
-      const first = points[0];
-      const last = points[points.length - 1];
-      areaPath = `${d} L ${last.x} ${height - paddingBottom} L ${first.x} ${height - paddingBottom} Z`;
+    // Split into contiguous segments so NaNs render as gaps (no line).
+    const segments: Array<Array<{ x: number; y: number }>> = [];
+    let current: Array<{ x: number; y: number }> = [];
+    for (const p of points) {
+      if (p) {
+        current.push(p);
+      } else if (current.length) {
+        segments.push(current);
+        current = [];
+      }
     }
+    if (current.length) segments.push(current);
+
+    const d = segments.map(buildMonotonePath).join(' ');
+
+    const areaPath = segments
+      .map((seg) => {
+        if (!seg.length) return '';
+        const segPath = buildMonotonePath(seg);
+        const first = seg[0];
+        const last = seg[seg.length - 1];
+        return `${segPath} L ${last.x} ${height - paddingBottom} L ${first.x} ${height - paddingBottom} Z`;
+      })
+      .filter(Boolean)
+      .join(' ');
 
     const ticks = 4;
     const tickValues: number[] = [];
@@ -167,10 +178,10 @@ export const CustomLineChart = ({
         );
 
         // Only show notes that fall inside the visible period
-        if (noteIndex >= 0 && noteIndex < points.length) {
+        if (noteIndex >= 0 && noteIndex < points.length && points[noteIndex]) {
           notePositions.push({
-            x: points[noteIndex].x,
-            y: points[noteIndex].y,
+            x: points[noteIndex]!.x,
+            y: points[noteIndex]!.y,
             note
           });
         }

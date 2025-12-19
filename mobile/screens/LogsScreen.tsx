@@ -31,7 +31,19 @@ export default function LogsScreen() {
         eventRepo.list(),
       ]);
 
-      const monthLogs = allLogs.filter(log => log.created_at >= startDateStr && log.created_at <= endDateStr);
+      const toDateOnly = (iso: string) => iso.substring(0, 10);
+      const getLogDateStr = (log: Log) => ((log as any).log_date as string | undefined) || toDateOnly(log.created_at);
+
+      const startYmd = toDateOnly(startDateStr);
+      const endYmd = toDateOnly(endDateStr);
+
+      const monthLogs = allLogs
+        .filter(log => {
+          const ymd = getLogDateStr(log);
+          return ymd >= startYmd && ymd <= endYmd;
+        })
+        .sort((a, b) => (getLogDateStr(a) < getLogDateStr(b) ? 1 : -1));
+
       setLogs(monthLogs);
       setEvents(allEvents);
     } catch (error) {
@@ -72,13 +84,20 @@ export default function LogsScreen() {
     return `${log.value} ${event.scale_label || ''}`;
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', { 
-      month: 'short', 
+  const parseDateOnly = (ymd: string) => {
+    const [y, m, d] = ymd.split('-').map(Number);
+    return new Date(y, (m || 1) - 1, d || 1);
+  };
+
+  const toDateOnly = (iso: string) => iso.substring(0, 10);
+  const getLogDateStr = (log: Log) => ((log as any).log_date as string | undefined) || toDateOnly(log.created_at);
+
+  const formatDate = (log: Log) => {
+    const date = parseDateOnly(getLogDateStr(log));
+    return date.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
       day: 'numeric',
-      hour: 'numeric',
-      minute: '2-digit'
     });
   };
 
@@ -107,7 +126,7 @@ export default function LogsScreen() {
         <Text style={styles.eventName}>{(events.find(e => (item as any).event_id ? e.id === (item as any).event_id : e.event_name === item.event_name) || { event_name: item.event_name }).event_name}</Text>
         <Text style={styles.value}>{formatValue(item)}</Text>
       </View>
-      <Text style={styles.date}>{formatDate(item.created_at)}</Text>
+      <Text style={styles.date}>{formatDate(item)}</Text>
     </TouchableOpacity>
   );
 

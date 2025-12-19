@@ -48,6 +48,7 @@ export interface Database {
         Row: {
           id: string
           created_at: string
+          log_date: string
           updated_at: string
           event_id: string
           event_name: string
@@ -57,6 +58,7 @@ export interface Database {
         Insert: {
           id?: string
           created_at?: string
+          log_date?: string
           updated_at?: string
           event_id: string
           event_name: string
@@ -66,6 +68,7 @@ export interface Database {
         Update: {
           id?: string
           created_at?: string
+          log_date?: string
           updated_at?: string
           event_id?: string
           event_name?: string

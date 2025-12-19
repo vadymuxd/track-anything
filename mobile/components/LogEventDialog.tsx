@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Animated } from 'react-native';
+import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView, Animated, TextInput, Platform } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { Event, eventRepo } from '../lib/eventRepo';
 import { logRepo, Log } from '../lib/logRepo';
 import { dataEmitter, DATA_UPDATED_EVENT } from '../lib/eventEmitter';
@@ -17,6 +18,9 @@ export const LogEventDialog = ({ visible, onClose, onSave, log, onDelete, onCrea
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<string>('');
   const [scaleValue, setScaleValue] = useState<number>(1);
+  const [metricValueText, setMetricValueText] = useState<string>('');
+  const [logDate, setLogDate] = useState<Date>(new Date());
+  const [showDatePicker, setShowDatePicker] = useState<boolean>(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const overlayOpacity = useRef(new Animated.Value(0)).current;
@@ -67,9 +71,19 @@ export const LogEventDialog = ({ visible, onClose, onSave, log, onDelete, onCrea
         // If editing a log, set the event and value from the log
         setSelectedEvent(log.event_id || '');
         setScaleValue(log.value);
+        setMetricValueText(String(log.value));
+        const logDateStr = (log as any).log_date as string | undefined;
+        if (logDateStr) {
+          const [y, m, d] = logDateStr.split('-').map(Number);
+          setLogDate(new Date(y, (m || 1) - 1, d || 1));
+        } else {
+          setLogDate(new Date(log.created_at));
+        }
       } else if (allEvents.length > 0) {
         setSelectedEvent(allEvents[0].id);
         setScaleValue(1);
+        setMetricValueText('');
+        setLogDate(new Date());
       }
     } catch (error) {
       console.error('Error loading events:', error);
@@ -84,16 +98,43 @@ export const LogEventDialog = ({ visible, onClose, onSave, log, onDelete, onCrea
     const event = events.find(e => e.id === selectedEvent);
     if (!event) return;
 
-    const value = event.event_type === 'Count' ? 1 : scaleValue;
+    const eventType = String(event.event_type);
+    let value: number;
+    if (eventType === 'Count') {
+      value = 1;
+    } else if (eventType === 'Scale') {
+      value = scaleValue;
+    } else if (eventType === 'Metric') {
+      const trimmed = metricValueText.trim();
+      // Accept both '.' and ',' as decimal separators.
+      const normalized = trimmed.replace(',', '.');
+      const parsed = normalized === '' ? Number.NaN : Number(normalized);
+      if (!Number.isFinite(parsed)) {
+        alert('Please enter a valid number');
+        return;
+      }
+      value = parsed;
+    } else {
+      // Fallback: treat unknown types as numeric
+      value = scaleValue;
+    }
     
     setSaving(true);
     try {
+      const toDateOnly = (d: Date) => {
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd}`;
+      };
+
       if (log) {
         // Update existing log
         await logRepo.update(log.id, {
           event_id: event.id,
           event_name: event.event_name,
           value,
+          log_date: toDateOnly(logDate),
         });
       } else {
         // Create new log
@@ -101,6 +142,7 @@ export const LogEventDialog = ({ visible, onClose, onSave, log, onDelete, onCrea
           event_id: event.id,
           event_name: event.event_name,
           value,
+          log_date: toDateOnly(logDate),
         });
       }
 
@@ -108,6 +150,8 @@ export const LogEventDialog = ({ visible, onClose, onSave, log, onDelete, onCrea
       dataEmitter.emit(DATA_UPDATED_EVENT);
 
       setScaleValue(1);
+      setMetricValueText('');
+      setLogDate(new Date());
       onSave();
       onClose();
     } catch (error) {
@@ -194,6 +238,35 @@ export const LogEventDialog = ({ visible, onClose, onSave, log, onDelete, onCrea
             </View>
 
             <View style={styles.field}>
+              <Text style={styles.label}>Date</Text>
+              <TouchableOpacity 
+                style={styles.dateButton}
+                onPress={() => setShowDatePicker(true)}
+              >
+                <Text style={styles.dateButtonText}>
+                  {logDate.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                  })}
+                </Text>
+              </TouchableOpacity>
+              {showDatePicker && (
+                <DateTimePicker
+                  value={logDate}
+                  mode="date"
+                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                  onChange={(event, selectedDate) => {
+                    setShowDatePicker(Platform.OS === 'ios');
+                    if (selectedDate) {
+                      setLogDate(selectedDate);
+                    }
+                  }}
+                />
+              )}
+            </View>
+
+            <View style={styles.field}>
               <Text style={styles.label}>Select Event</Text>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.eventPicker}>
                 {events.map((event) => (
@@ -241,6 +314,21 @@ export const LogEventDialog = ({ visible, onClose, onSave, log, onDelete, onCrea
                     </TouchableOpacity>
                   ))}
                 </View>
+              </View>
+            )}
+
+            {selectedEventData?.event_type === 'Metric' && (
+              <View style={styles.field}>
+                <Text style={styles.label}>
+                  Value{selectedEventData.scale_label ? ` (${selectedEventData.scale_label})` : ''}
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  value={metricValueText}
+                  onChangeText={setMetricValueText}
+                  keyboardType="decimal-pad"
+                  placeholder="e.g., 72.5"
+                />
               </View>
             )}
 
@@ -324,6 +412,25 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     marginBottom: 8,
     color: '#333',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    fontSize: 16,
+    backgroundColor: '#fff',
+  },
+  dateButton: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
+    backgroundColor: '#fff',
+  },
+  dateButtonText: {
+    fontSize: 16,
+    color: '#000',
   },
   eventPicker: {
     marginTop: 4,

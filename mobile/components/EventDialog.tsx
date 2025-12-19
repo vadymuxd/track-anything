@@ -13,7 +13,7 @@ interface EventDialogProps {
 
 export const EventDialog = ({ visible, onClose, event, onSave, onDelete }: EventDialogProps) => {
   const [eventName, setEventName] = useState('');
-  const [eventType, setEventType] = useState<'Count' | 'Scale'>('Count');
+  const [eventType, setEventType] = useState<'Count' | 'Scale' | 'Metric'>('Count');
   const [scaleLabel, setScaleLabel] = useState('');
   const [scaleMax, setScaleMax] = useState('5');
   const [eventColor, setEventColor] = useState<string>(DEFAULT_COLORS[0]);
@@ -58,7 +58,7 @@ export const EventDialog = ({ visible, onClose, event, onSave, onDelete }: Event
   useEffect(() => {
     if (event) {
       setEventName(event.event_name);
-      setEventType(event.event_type as 'Count' | 'Scale');
+      setEventType(event.event_type as 'Count' | 'Scale' | 'Metric');
       setScaleLabel(event.scale_label || '');
       setScaleMax(event.scale_max?.toString() || '5');
       // Load existing color preference for this event
@@ -92,7 +92,7 @@ export const EventDialog = ({ visible, onClose, event, onSave, onDelete }: Event
         await eventRepo.update(event.id, {
           event_name: eventName,
           event_type: eventType,
-          scale_label: eventType === 'Scale' ? scaleLabel : null,
+          scale_label: eventType === 'Scale' || eventType === 'Metric' ? scaleLabel : null,
           scale_max: eventType === 'Scale' ? parseInt(scaleMax) : null,
         });
         await colorPrefs.set(event.id, eventColor);
@@ -100,7 +100,7 @@ export const EventDialog = ({ visible, onClose, event, onSave, onDelete }: Event
         const created = await eventRepo.create({
           event_name: eventName,
           event_type: eventType,
-          scale_label: eventType === 'Scale' ? scaleLabel : null,
+          scale_label: eventType === 'Scale' || eventType === 'Metric' ? scaleLabel : null,
           scale_max: eventType === 'Scale' ? parseInt(scaleMax) : null,
         });
         if (created && 'id' in created) {
@@ -165,31 +165,41 @@ export const EventDialog = ({ visible, onClose, event, onSave, onDelete }: Event
                     Scale
                   </Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.typeOption, eventType === 'Metric' && styles.typeOptionActive]}
+                  onPress={() => setEventType('Metric')}
+                >
+                  <Text style={[styles.typeOptionText, eventType === 'Metric' && styles.typeOptionTextActive]}>
+                    Metric
+                  </Text>
+                </TouchableOpacity>
               </ScrollView>
             </View>
 
-            {eventType === 'Scale' && (
+            {(eventType === 'Scale' || eventType === 'Metric') && (
               <>
                 <View style={styles.field}>
-                  <Text style={styles.label}>Scale Label</Text>
+                  <Text style={styles.label}>{eventType === 'Metric' ? 'Metric Label' : 'Scale Label'}</Text>
                   <TextInput
                     style={styles.input}
                     value={scaleLabel}
                     onChangeText={setScaleLabel}
-                    placeholder="e.g., cups, km, hours"
+                    placeholder={eventType === 'Metric' ? 'e.g., kg, bpm, °C' : 'e.g., cups, km, hours'}
                   />
                 </View>
 
-                <View style={styles.field}>
-                  <Text style={styles.label}>Scale Max (2-10)</Text>
-                  <TextInput
-                    style={styles.input}
-                    value={scaleMax}
-                    onChangeText={setScaleMax}
-                    keyboardType="number-pad"
-                    placeholder="5"
-                  />
-                </View>
+                {eventType === 'Scale' && (
+                  <View style={styles.field}>
+                    <Text style={styles.label}>Scale Max (2-10)</Text>
+                    <TextInput
+                      style={styles.input}
+                      value={scaleMax}
+                      onChangeText={setScaleMax}
+                      keyboardType="number-pad"
+                      placeholder="5"
+                    />
+                  </View>
+                )}
               </>
             )}
 
