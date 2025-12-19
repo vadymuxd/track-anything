@@ -19,6 +19,7 @@ export interface Database {
           scale_max: number | null
           position: number
           color: string
+          user_id: string | null
         }
         Insert: {
           id?: string
@@ -29,6 +30,7 @@ export interface Database {
           scale_max?: number | null
           position?: number
           color?: string
+          user_id?: string | null
         }
         Update: {
           id?: string
@@ -39,6 +41,7 @@ export interface Database {
           scale_max?: number | null
           position?: number
           color?: string
+          user_id?: string | null
         }
       }
       logs: {
@@ -49,6 +52,7 @@ export interface Database {
           event_id: string
           event_name: string
           value: number
+          user_id: string | null
         }
         Insert: {
           id?: string
@@ -57,6 +61,7 @@ export interface Database {
           event_id: string
           event_name: string
           value: number
+          user_id?: string | null
         }
         Update: {
           id?: string
@@ -65,6 +70,7 @@ export interface Database {
           event_id?: string
           event_name?: string
           value?: number
+          user_id?: string | null
         }
       }
       notes: {
@@ -73,9 +79,7 @@ export interface Database {
           created_at: string
           updated_at: string
           title: string
-          description: string | null
-          event_id: string
-          start_date: string
+          user_id: string | null
         }
         Insert: {
           id?: string
@@ -85,12 +89,43 @@ export interface Database {
           description?: string | null
           event_id: string
           start_date?: string
+          user_id?: string | null
         }
         Update: {
           id?: string
           created_at?: string
           updated_at?: string
           title?: string
+          description?: string | null
+          event_id?: string
+          start_date?: string
+          user_id?: string | null
+        }
+      }
+      users: {
+        Row: {
+          id: string
+          created_at: string
+          updated_at: string
+          email: string
+          full_name: string | null
+          avatar_url: string | null
+        }
+        Insert: {
+          id: string
+          created_at?: string
+          updated_at?: string
+          email: string
+          full_name?: string | null
+          avatar_url?: string | null
+        }
+        Update: {
+          id?: string
+          created_at?: string
+          updated_at?: string
+          email?: string
+          full_name?: string | null
+          avatar_url?: string | null
           description?: string | null
           event_id?: string
           start_date?: string

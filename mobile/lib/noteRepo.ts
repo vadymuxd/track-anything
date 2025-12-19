@@ -7,9 +7,12 @@ export type NoteUpdate = Database['public']['Tables']['notes']['Update'];
 
 export const noteRepo = {
   async list(): Promise<Note[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
       .from('notes')
       .select('*')
+      .eq('user_id', user?.id)
       .order('created_at', { ascending: false });
     
     if (error) throw error;
@@ -28,9 +31,12 @@ export const noteRepo = {
   },
 
   async getByEventId(eventId: string): Promise<Note[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
       .from('notes')
       .select('*')
+      .eq('user_id', user?.id)
       .eq('event_id', eventId)
       .order('created_at', { ascending: false });
     
@@ -39,9 +45,11 @@ export const noteRepo = {
   },
 
   async create(note: NoteInsert): Promise<Note> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
       .from('notes')
-      .insert(note as any)
+      .insert({ ...note, user_id: user?.id } as any)
       .select()
       .single();
     

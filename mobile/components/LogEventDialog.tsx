@@ -10,9 +10,10 @@ interface LogEventDialogProps {
   onSave: () => void;
   log?: Log | null;
   onDelete?: () => void;
+  onCreateEventPress?: () => void;
 }
 
-export const LogEventDialog = ({ visible, onClose, onSave, log, onDelete }: LogEventDialogProps) => {
+export const LogEventDialog = ({ visible, onClose, onSave, log, onDelete, onCreateEventPress }: LogEventDialogProps) => {
   const [events, setEvents] = useState<Event[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<string>('');
   const [scaleValue, setScaleValue] = useState<number>(1);
@@ -157,9 +158,17 @@ export const LogEventDialog = ({ visible, onClose, onSave, log, onDelete }: LogE
                 <Text style={styles.closeIcon}>×</Text>
               </TouchableOpacity>
             </View>
-            <Text style={styles.emptyText}>Create an event first to start logging.</Text>
-            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-              <Text style={styles.closeButtonText}>Close</Text>
+            <Text style={styles.emptyText}>
+              Create an event that you want to track. After at least one event is created you can start logging it.
+            </Text>
+            <TouchableOpacity 
+              style={styles.closeButton} 
+              onPress={() => {
+                onClose();
+                onCreateEventPress?.();
+              }}
+            >
+              <Text style={styles.closeButtonText}>Create New Event</Text>
             </TouchableOpacity>
             </View>
           </Animated.View>

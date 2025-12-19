@@ -1,6 +1,6 @@
 import { StatusBar } from 'expo-status-bar';
-import { View, TouchableOpacity, Text, StyleSheet } from 'react-native';
-import React, { useState } from 'react';
+import { View, TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import React, { useState, useRef } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -8,8 +8,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import EventsScreen from './screens/EventsScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import LogsScreen from './screens/LogsScreen';
+import AuthScreen from './screens/AuthScreen';
 import { LogEventDialog } from './components/LogEventDialog';
 import { CustomHeader } from './components/CustomHeader';
+import { AuthProvider, useAuth } from './lib/auth';
 
 const Tab = createBottomTabNavigator();
 
@@ -100,82 +102,123 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
   }
 }
 
-export default function App() {
+function MainApp() {
   const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const { user, loading } = useAuth();
+  const navigationRef = useRef<any>(null);
 
   const handleLogSaved = () => {
     setRefreshKey(prev => prev + 1);
   };
 
+  const handleCreateEventPress = () => {
+    // Navigate to Events tab
+    if (navigationRef.current) {
+      navigationRef.current.navigate('Events', { openDialog: true });
+    }
+  };
+
+  // Show loading spinner while checking auth
+  if (loading) {
+    return (
+      <View style={appStyles.loadingContainer}>
+        <ActivityIndicator size="large" color="#dc3545" />
+      </View>
+    );
+  }
+
+  // Show AuthScreen if user is not logged in
+  if (!user) {
+    return <AuthScreen />;
+  }
+
+  // Show main app if user is logged in
+  return (
+    <>
+      <NavigationContainer ref={navigationRef}>
+        <Tab.Navigator
+          screenOptions={{
+            header: ({ route }) => <CustomHeader title={route.name} />,
+            headerShown: true,
+            tabBarStyle: {
+              paddingBottom: 25,
+              paddingTop: 5,
+              height: 80,
+              borderTopWidth: 1,
+              borderTopColor: '#e0e0e0',
+            },
+            tabBarActiveTintColor: '#000',
+            tabBarInactiveTintColor: '#666',
+            tabBarIcon: ({ focused, color }) => null,
+          }}
+        >
+          <Tab.Screen 
+            name="History" 
+            component={HistoryScreen}
+            options={{ 
+              tabBarLabel: 'History',
+              tabBarIcon: ({ color }) => <MaterialIcons name="insert-chart" size={24} color={color} />,
+            }}
+          />
+          <Tab.Screen 
+            name="Events" 
+            component={EventsScreen}
+            options={{ 
+              tabBarLabel: 'Events',
+              tabBarIcon: ({ color }) => <MaterialIcons name="event" size={24} color={color} />,
+            }}
+          />
+          <Tab.Screen 
+            name="Logs" 
+            component={LogsScreen}
+            options={{ 
+              // Keep Logs as a route (for burger navigation) but hide its tab completely
+              tabBarButton: () => null,
+              tabBarItemStyle: { display: 'none' },
+            }}
+          />
+        </Tab.Navigator>
+        
+        <TouchableOpacity
+          style={appStyles.fab}
+          onPress={() => setIsLogDialogOpen(true)}
+        >
+          <Text style={appStyles.fabText}>+</Text>
+        </TouchableOpacity>
+
+        <LogEventDialog
+          visible={isLogDialogOpen}
+          onClose={() => setIsLogDialogOpen(false)}
+          onSave={handleLogSaved}
+          onCreateEventPress={handleCreateEventPress}
+        />
+
+        <StatusBar style="auto" />
+      </NavigationContainer>
+    </>
+  );
+}
+
+export default function App() {
   return (
     <RootErrorBoundary>
       <SafeAreaProvider>
-        <NavigationContainer>
-          <Tab.Navigator
-            screenOptions={{
-              header: ({ route }) => <CustomHeader title={route.name} />,
-              headerShown: true,
-              tabBarStyle: {
-                paddingBottom: 25,
-                paddingTop: 5,
-                height: 80,
-                borderTopWidth: 1,
-                borderTopColor: '#e0e0e0',
-              },
-              tabBarActiveTintColor: '#000',
-              tabBarInactiveTintColor: '#666',
-              tabBarIcon: ({ focused, color }) => null,
-            }}
-          >
-            <Tab.Screen 
-              name="History" 
-              component={HistoryScreen}
-              options={{ 
-                tabBarLabel: 'History',
-                tabBarIcon: ({ color }) => <MaterialIcons name="insert-chart" size={24} color={color} />,
-              }}
-            />
-            <Tab.Screen 
-              name="Events" 
-              component={EventsScreen}
-              options={{ 
-                tabBarLabel: 'Events',
-                tabBarIcon: ({ color }) => <MaterialIcons name="event" size={24} color={color} />,
-              }}
-            />
-            <Tab.Screen 
-              name="Logs" 
-              component={LogsScreen}
-              options={{ 
-                // Keep Logs as a route (for burger navigation) but hide its tab completely
-                tabBarButton: () => null,
-                tabBarItemStyle: { display: 'none' },
-              }}
-            />
-          </Tab.Navigator>
-          
-          <TouchableOpacity
-            style={appStyles.fab}
-            onPress={() => setIsLogDialogOpen(true)}
-          >
-            <Text style={appStyles.fabText}>+</Text>
-          </TouchableOpacity>
-
-          <LogEventDialog
-            visible={isLogDialogOpen}
-            onClose={() => setIsLogDialogOpen(false)}
-            onSave={handleLogSaved}
-          />
-
-          <StatusBar style="auto" />
-        </NavigationContainer>
+        <AuthProvider>
+          <MainApp />
+        </AuthProvider>
       </SafeAreaProvider>
     </RootErrorBoundary>
   );
 }
 
 const appStyles = StyleSheet.create({
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
   fab: {
     position: 'absolute',
     bottom: 52,

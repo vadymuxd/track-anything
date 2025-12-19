@@ -9,9 +9,12 @@ export type EventUpdate = Database['public']['Tables']['events']['Update'];
 
 export const eventRepo = {
   async list(): Promise<Event[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
       .from('events')
       .select('*')
+      .eq('user_id', user?.id)
       .order('position', { ascending: true });
     
     if (error) throw error;
@@ -63,9 +66,11 @@ export const eventRepo = {
   },
 
   async create(event: EventInsert): Promise<Event> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
       .from('events')
-      .insert(event as any)
+      .insert({ ...event, user_id: user?.id } as any)
       .select()
       .single();
     

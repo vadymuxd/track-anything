@@ -6,9 +6,12 @@ export type LogInsert = Database['public']['Tables']['logs']['Insert'];
 
 export const logRepo = {
   async list(): Promise<Log[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
       .from('logs')
       .select('*')
+      .eq('user_id', user?.id)
       .order('created_at', { ascending: false });
     
     if (error) throw error;
@@ -16,9 +19,12 @@ export const logRepo = {
   },
 
   async listByDateRange(startDate: string, endDate: string): Promise<Log[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
       .from('logs')
       .select('*')
+      .eq('user_id', user?.id)
       .gte('created_at', startDate)
       .lte('created_at', endDate)
       .order('created_at', { ascending: false });
@@ -28,9 +34,12 @@ export const logRepo = {
   },
 
   async listByEvent(eventId: string): Promise<Log[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
       .from('logs')
       .select('*')
+      .eq('user_id', user?.id)
       .eq('event_id', eventId)
       .order('created_at', { ascending: false });
     
@@ -39,9 +48,12 @@ export const logRepo = {
   },
 
   async listByEventName(eventName: string): Promise<Log[]> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
       .from('logs')
       .select('*')
+      .eq('user_id', user?.id)
       .eq('event_name', eventName)
       .order('created_at', { ascending: false });
     
@@ -50,9 +62,11 @@ export const logRepo = {
   },
 
   async create(log: LogInsert): Promise<Log> {
+    const { data: { user } } = await supabase.auth.getUser();
+    
     const { data, error } = await supabase
       .from('logs')
-      .insert(log as any)
+      .insert({ ...log, user_id: user?.id } as any)
       .select()
       .single();
     
