@@ -105,7 +105,7 @@ class RootErrorBoundary extends React.Component<{ children: React.ReactNode }, {
 function MainApp() {
   const [isLogDialogOpen, setIsLogDialogOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
-  const { user, loading } = useAuth();
+  const { user, loading, dataLoading } = useAuth();
   const navigationRef = useRef<any>(null);
 
   const handleLogSaved = () => {
@@ -131,6 +131,16 @@ function MainApp() {
   // Show AuthScreen if user is not logged in
   if (!user) {
     return <AuthScreen />;
+  }
+
+  // Show dedicated data-loading screen after login / session restore
+  if (dataLoading) {
+    return (
+      <View style={appStyles.dataLoadingContainer}>
+        <ActivityIndicator size="large" color="#000" />
+        <Text style={appStyles.dataLoadingText}>Loading your data</Text>
+      </View>
+    );
   }
 
   // Show main app if user is logged in
@@ -218,6 +228,17 @@ const appStyles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#fff',
+  },
+  dataLoadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+  },
+  dataLoadingText: {
+    marginTop: 12,
+    color: '#000',
+    fontSize: 16,
   },
   fab: {
     position: 'absolute',

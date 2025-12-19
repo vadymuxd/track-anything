@@ -25,25 +25,26 @@ export default function EventsScreen({ route, navigation }: any) {
 
   const loadEvents = async () => {
     try {
-      const data = await eventRepo.list();
-      setEvents(data);
-      
-      // Load log counts
+      const [allEvents, allLogs, allNotes, colorPreferences] = await Promise.all([
+        eventRepo.list(),
+        logRepo.list(),
+        noteRepo.list(),
+        colorPrefs.getAll(),
+      ]);
+
+      setEvents(allEvents);
+      setNotes(allNotes);
+
       const counts: Record<string, number> = {};
-      for (const event of data) {
-        const logsForEvent = await logRepo.listByEvent(event.id);
-        counts[event.id] = logsForEvent.length;
+      for (const log of allLogs) {
+        const eventId = (log as any).event_id as string | undefined;
+        if (!eventId) continue;
+        counts[eventId] = (counts[eventId] || 0) + 1;
       }
       setLogCounts(counts);
 
-      // Load notes
-      const allNotes = await noteRepo.list();
-      setNotes(allNotes);
-
-      // Load color preferences
-      const colorPreferences = await colorPrefs.getAll();
       const initialColors: Record<string, string> = {};
-      data.forEach(event => {
+      allEvents.forEach(event => {
         initialColors[event.id] = colorPreferences[event.id] || DEFAULT_COLORS[0];
       });
       setChartColors(initialColors);

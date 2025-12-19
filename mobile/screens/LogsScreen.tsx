@@ -26,10 +26,12 @@ export default function LogsScreen() {
       const startDateStr = startDate.toISOString();
       const endDateStr = endDate.toISOString();
 
-      const [monthLogs, allEvents] = await Promise.all([
-        logRepo.listByDateRange(startDateStr, endDateStr),
-        eventRepo.list()
+      const [allLogs, allEvents] = await Promise.all([
+        logRepo.list(),
+        eventRepo.list(),
       ]);
+
+      const monthLogs = allLogs.filter(log => log.created_at >= startDateStr && log.created_at <= endDateStr);
       setLogs(monthLogs);
       setEvents(allEvents);
     } catch (error) {

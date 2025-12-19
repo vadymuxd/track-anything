@@ -10,11 +10,11 @@ import {
   ScrollView,
   Alert,
   ActivityIndicator,
-  Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../lib/auth';
+import Logo from '../assets/TA Logo svg.svg';
 
 export default function AuthScreen() {
   const [isSignUp, setIsSignUp] = useState(false);
@@ -110,11 +110,7 @@ export default function AuthScreen() {
         >
           {/* Logo/App Name */}
           <View style={styles.logoContainer}>
-            <Image
-              source={require('../assets/TA Logo svg.png')}
-              style={styles.logo}
-              resizeMode="contain"
-            />
+            <Logo width={60} height={60} />
             <Text style={styles.appName}>Track Anything</Text>
           </View>
 
@@ -255,8 +251,8 @@ const styles = StyleSheet.create({
     marginBottom: 48,
   },
   logo: {
-    width: 120,
-    height: 120,
+    width: 60,
+    height: 60,
   },
   appName: {
     fontSize: 28,

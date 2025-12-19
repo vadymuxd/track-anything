@@ -2,52 +2,91 @@ import { supabase } from './supabase';
 import type { Database } from './database.types';
 import { positionPrefs } from './positionPrefs';
 import { colorPrefs } from './colorPrefs';
+import { localStorage } from './localStorage';
+import { dataEmitter, DATA_UPDATED_EVENT } from './eventEmitter';
 
 export type Event = Database['public']['Tables']['events']['Row'];
 export type EventInsert = Database['public']['Tables']['events']['Insert'];
 export type EventUpdate = Database['public']['Tables']['events']['Update'];
 
+const EVENTS_REFRESH_COOLDOWN_MS = 10_000;
+let eventsRefreshInFlight: Promise<void> | null = null;
+let eventsLastRefreshStartedAt = 0;
+
 export const eventRepo = {
   async list(): Promise<Event[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .eq('user_id', user?.id)
-      .order('position', { ascending: true });
-    
-    if (error) throw error;
-    
-    // Merge with local preferences for faster/optimistic ordering and colors
-    const events = data || [];
-    const [localPositions, localColors] = await Promise.all([
+    const [cachedEvents, localPositions, localColors] = await Promise.all([
+      localStorage.getEvents(),
       positionPrefs.getAll(),
-      colorPrefs.getAll()
+      colorPrefs.getAll(),
     ]);
-    
-    // Apply local positions and colors if they exist
-    const eventsWithLocalPrefs = events.map(event => {
-      const localPos = localPositions[event.id];
-      const localColor = localColors[event.id];
-      return {
-        ...event,
-        position: localPos !== undefined ? localPos : event.position,
-        color: localColor !== undefined ? localColor : event.color
-      };
-    });
-    
-    // Sort by position (local positions take precedence)
-    eventsWithLocalPrefs.sort((a, b) => a.position - b.position);
-    
-    return eventsWithLocalPrefs;
+
+    const applyLocalPrefs = (events: Event[]) => {
+      const eventsWithLocalPrefs = events.map(event => {
+        const localPos = localPositions[event.id];
+        const localColor = localColors[event.id];
+        return {
+          ...event,
+          position: localPos !== undefined ? localPos : event.position,
+          color: localColor !== undefined ? localColor : event.color,
+        };
+      });
+      eventsWithLocalPrefs.sort((a, b) => a.position - b.position);
+      return eventsWithLocalPrefs;
+    };
+
+    const refreshFromBackend = () => {
+      if (eventsRefreshInFlight) return eventsRefreshInFlight;
+      eventsLastRefreshStartedAt = Date.now();
+      eventsRefreshInFlight = (async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user?.id) return;
+
+        const { data, error } = await supabase
+          .from('events')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('position', { ascending: true });
+
+        if (error) throw error;
+
+        const events = applyLocalPrefs(data || []);
+        await localStorage.setEvents(events);
+        dataEmitter.emit(DATA_UPDATED_EVENT);
+      })().finally(() => {
+        eventsRefreshInFlight = null;
+      });
+
+      return eventsRefreshInFlight;
+    };
+
+    const maybeRefreshInBackground = () => {
+      const now = Date.now();
+      if (now - eventsLastRefreshStartedAt < EVENTS_REFRESH_COOLDOWN_MS) return;
+      void refreshFromBackend().catch(err => {
+        console.error('[eventRepo.list] Background refresh failed:', err);
+      });
+    };
+
+    // If we have cached data, return it immediately and refresh in background.
+    if (cachedEvents) {
+      maybeRefreshInBackground();
+      return applyLocalPrefs(cachedEvents);
+    }
+
+    // No cache available: block on backend.
+    await refreshFromBackend();
+    const fresh = await localStorage.getEvents();
+    return applyLocalPrefs(fresh || []);
   },
 
   async getById(id: string): Promise<Event | null> {
+    const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from('events')
       .select('*')
       .eq('id', id)
+      .eq('user_id', user?.id)
       .single();
     
     if (error) throw error;
@@ -55,10 +94,12 @@ export const eventRepo = {
   },
 
   async getByName(eventName: string): Promise<Event | null> {
+    const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from('events')
       .select('*')
       .eq('event_name', eventName)
+      .eq('user_id', user?.id)
       .single();
     
     if (error && error.code !== 'PGRST116') throw error;
@@ -75,6 +116,15 @@ export const eventRepo = {
       .single();
     
     if (error) throw error;
+    
+    // Update local storage cache
+    const cachedEvents = await localStorage.getEvents();
+    if (cachedEvents) {
+      await localStorage.setEvents([...cachedEvents, data]);
+    }
+
+    dataEmitter.emit(DATA_UPDATED_EVENT);
+    
     return data;
   },
 
@@ -104,6 +154,15 @@ export const eventRepo = {
       console.error('Failed to backfill logs with new event_name:', e);
     }
 
+    // Update local storage cache
+    const cachedEvents = await localStorage.getEvents();
+    if (cachedEvents) {
+      const updatedEvents = cachedEvents.map(e => e.id === id ? data : e);
+      await localStorage.setEvents(updatedEvents);
+    }
+
+    dataEmitter.emit(DATA_UPDATED_EVENT);
+
     return data;
   },
 
@@ -114,6 +173,15 @@ export const eventRepo = {
       .eq('id', id);
     
     if (error) throw error;
+
+    // Update local storage cache
+    const cachedEvents = await localStorage.getEvents();
+    if (cachedEvents) {
+      const updatedEvents = cachedEvents.filter(e => e.id !== id);
+      await localStorage.setEvents(updatedEvents);
+    }
+
+    dataEmitter.emit(DATA_UPDATED_EVENT);
   },
 
   async swapPositions(eventId1: string, eventId2: string): Promise<void> {
@@ -134,6 +202,8 @@ export const eventRepo = {
     this.update(eventId2, { position: tempPosition }).catch(err => 
       console.error('Failed to update position in DB:', err)
     );
+
+    dataEmitter.emit(DATA_UPDATED_EVENT);
   },
 
   async moveUp(eventId: string, allEvents: Event[]): Promise<void> {
